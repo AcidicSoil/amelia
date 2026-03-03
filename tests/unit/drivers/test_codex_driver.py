@@ -608,3 +608,239 @@ async def test_validate_schema_raises_schema_error() -> None:
     driver = CodexCliDriver(model="gpt-5-codex", cwd="/tmp")
     with pytest.raises(SchemaValidationError, match="Schema validation failed"):
         driver._validate_schema({"wrong": "data"}, _Schema, "source")
+
+
+# ---------------------------------------------------------------------------
+# Usage tracking tests
+# ---------------------------------------------------------------------------
+
+
+def _make_turn_completed_event(
+    input_tokens: int, output_tokens: int, cached_input_tokens: int = 0
+) -> CodexStreamEvent:
+    """Build a turn.completed CodexStreamEvent with a usage dict."""
+    return CodexStreamEvent(
+        type="turn.completed",
+        usage={
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cached_input_tokens": cached_input_tokens,
+        },
+    )
+
+
+class TestCodexDriverGetUsage:
+    """Tests for CodexCliDriver.get_usage() before any execution."""
+
+    def test_get_usage_returns_none_before_execution(self) -> None:
+        driver = CodexCliDriver(model="gpt-5-codex", cwd="/tmp")
+        assert driver.get_usage() is None
+
+
+class TestCodexDriverUsageAccumulation:
+    """Tests for usage accumulation during execute_agentic."""
+
+    @pytest.mark.asyncio
+    async def test_accumulates_usage_across_turns(self) -> None:
+        driver = CodexCliDriver(model="gpt-5-codex", cwd="/tmp")
+
+        async def mock_run_codex_stream(
+            prompt: str, **kwargs: Any
+        ) -> AsyncIterator[CodexStreamEvent]:
+            events: list[CodexStreamEvent] = [
+                _make_turn_completed_event(100, 50, 10),
+                _make_turn_completed_event(200, 80, 20),
+                CodexStreamEvent(type="final", content="done"),
+            ]
+            for event in events:
+                yield event
+
+        with patch.object(driver, "_run_codex_stream", mock_run_codex_stream):
+            _ = [m async for m in driver.execute_agentic("task", cwd="/tmp")]
+
+        usage = driver.get_usage()
+        assert usage is not None
+        assert usage.input_tokens == 300
+        assert usage.output_tokens == 130
+        assert usage.cache_read_tokens == 30
+        assert usage.num_turns == 2
+        assert usage.model == "gpt-5-codex"
+        assert usage.duration_ms is not None
+        assert usage.duration_ms >= 0
+
+    @pytest.mark.asyncio
+    async def test_returns_none_when_no_usage_events(self) -> None:
+        driver = CodexCliDriver(model="gpt-5-codex", cwd="/tmp")
+
+        async def mock_run_codex_stream(
+            prompt: str, **kwargs: Any
+        ) -> AsyncIterator[CodexStreamEvent]:
+            events: list[CodexStreamEvent] = [
+                CodexStreamEvent(type="final", content="done"),
+            ]
+            for event in events:
+                yield event
+
+        with patch.object(driver, "_run_codex_stream", mock_run_codex_stream):
+            _ = [m async for m in driver.execute_agentic("task", cwd="/tmp")]
+
+        assert driver.get_usage() is None
+
+    @pytest.mark.asyncio
+    async def test_tracks_duration_ms(self) -> None:
+        driver = CodexCliDriver(model="gpt-5-codex", cwd="/tmp")
+
+        async def mock_run_codex_stream(
+            prompt: str, **kwargs: Any
+        ) -> AsyncIterator[CodexStreamEvent]:
+            await asyncio.sleep(0.05)
+            events: list[CodexStreamEvent] = [
+                _make_turn_completed_event(10, 5),
+                CodexStreamEvent(type="final", content="done"),
+            ]
+            for event in events:
+                yield event
+
+        with patch.object(driver, "_run_codex_stream", mock_run_codex_stream):
+            _ = [m async for m in driver.execute_agentic("task", cwd="/tmp")]
+
+        usage = driver.get_usage()
+        assert usage is not None
+        assert usage.duration_ms is not None
+        assert usage.duration_ms >= 50
+
+    @pytest.mark.asyncio
+    async def test_resets_usage_on_new_execution(self) -> None:
+        driver = CodexCliDriver(model="gpt-5-codex", cwd="/tmp")
+
+        async def mock_stream_with_usage(
+            prompt: str, **kwargs: Any
+        ) -> AsyncIterator[CodexStreamEvent]:
+            events: list[CodexStreamEvent] = [
+                _make_turn_completed_event(100, 50),
+                CodexStreamEvent(type="final", content="done"),
+            ]
+            for event in events:
+                yield event
+
+        async def mock_stream_without_usage(
+            prompt: str, **kwargs: Any
+        ) -> AsyncIterator[CodexStreamEvent]:
+            events: list[CodexStreamEvent] = [
+                CodexStreamEvent(type="final", content="done"),
+            ]
+            for event in events:
+                yield event
+
+        # First run: has usage
+        with patch.object(driver, "_run_codex_stream", mock_stream_with_usage):
+            _ = [m async for m in driver.execute_agentic("first", cwd="/tmp")]
+        assert driver.get_usage() is not None
+
+        # Second run: no usage events → get_usage returns None
+        with patch.object(driver, "_run_codex_stream", mock_stream_without_usage):
+            _ = [m async for m in driver.execute_agentic("second", cwd="/tmp")]
+        assert driver.get_usage() is None
+
+    @pytest.mark.asyncio
+    async def test_turn_completed_without_usage_field_is_skipped(self) -> None:
+        driver = CodexCliDriver(model="gpt-5-codex", cwd="/tmp")
+
+        async def mock_run_codex_stream(
+            prompt: str, **kwargs: Any
+        ) -> AsyncIterator[CodexStreamEvent]:
+            events: list[CodexStreamEvent] = [
+                CodexStreamEvent(type="turn.completed"),  # no usage field
+                CodexStreamEvent(type="final", content="done"),
+            ]
+            for event in events:
+                yield event
+
+        with patch.object(driver, "_run_codex_stream", mock_run_codex_stream):
+            _ = [m async for m in driver.execute_agentic("task", cwd="/tmp")]
+
+        assert driver.get_usage() is None
+
+
+# ---------------------------------------------------------------------------
+# Exception / early-exit usage tracking tests (Issue 4)
+# ---------------------------------------------------------------------------
+
+
+class TestCodexDriverUsageOnException:
+    """Tests that usage data is captured even when streaming ends abnormally."""
+
+    @pytest.mark.asyncio
+    async def test_usage_captured_on_early_consumer_break(self) -> None:
+        """Breaking out of execute_agentic early should still capture partial usage."""
+        driver = CodexCliDriver(model="gpt-5-codex", cwd="/tmp")
+
+        async def mock_run_codex_stream(
+            prompt: str, **kwargs: Any
+        ) -> AsyncIterator[CodexStreamEvent]:
+            events: list[CodexStreamEvent] = [
+                _make_turn_completed_event(100, 50, 10),
+                _make_turn_completed_event(200, 80, 20),
+                CodexStreamEvent(type="final", content="done"),
+            ]
+            for event in events:
+                yield event
+
+        with patch.object(driver, "_run_codex_stream", mock_run_codex_stream):
+            async for _msg in driver.execute_agentic("task", cwd="/tmp"):
+                break  # consume only the first yielded message
+
+        usage = driver.get_usage()
+        assert usage is not None
+        # At least the first turn's tokens should be captured
+        assert usage.input_tokens is not None and usage.input_tokens >= 100
+        assert usage.output_tokens is not None and usage.output_tokens >= 50
+        assert usage.model == "gpt-5-codex"
+
+    @pytest.mark.asyncio
+    async def test_usage_captured_on_stream_exception(self) -> None:
+        """Usage accumulated before an exception should still be available."""
+        driver = CodexCliDriver(model="gpt-5-codex", cwd="/tmp")
+
+        async def mock_run_codex_stream(
+            prompt: str, **kwargs: Any
+        ) -> AsyncIterator[CodexStreamEvent]:
+            yield _make_turn_completed_event(150, 60, 5)
+            yield _make_turn_completed_event(250, 90, 15)
+            raise RuntimeError("stream exploded")
+
+        with (
+            patch.object(driver, "_run_codex_stream", mock_run_codex_stream),
+            pytest.raises(RuntimeError, match="stream exploded"),
+        ):
+            async for _msg in driver.execute_agentic("task", cwd="/tmp"):
+                pass
+
+        usage = driver.get_usage()
+        assert usage is not None
+        assert usage.input_tokens == 400
+        assert usage.output_tokens == 150
+        assert usage.cache_read_tokens == 20
+        assert usage.num_turns == 2
+        assert usage.model == "gpt-5-codex"
+
+    @pytest.mark.asyncio
+    async def test_usage_none_when_exception_before_any_turns(self) -> None:
+        """If an exception fires before any turn.completed events, get_usage() is None."""
+        driver = CodexCliDriver(model="gpt-5-codex", cwd="/tmp")
+
+        async def mock_run_codex_stream(
+            prompt: str, **kwargs: Any
+        ) -> AsyncIterator[CodexStreamEvent]:
+            raise RuntimeError("immediate failure")
+            # Make this a generator (unreachable yield)
+            yield CodexStreamEvent(type="final", content="never")
+
+        with (
+            patch.object(driver, "_run_codex_stream", mock_run_codex_stream),
+            pytest.raises(RuntimeError, match="immediate failure"),
+        ):
+            async for _msg in driver.execute_agentic("task", cwd="/tmp"):
+                pass
+
+        assert driver.get_usage() is None
