@@ -1,4 +1,5 @@
 """Reviewer agent for code review in the Amelia orchestrator."""
+from __future__ import annotations
 
 import asyncio
 import re
@@ -16,6 +17,7 @@ from amelia.server.models.events import EventLevel, EventType, WorkflowEvent
 
 if TYPE_CHECKING:
     from amelia.pipelines.implementation.state import ImplementationState
+    from amelia.sandbox.provider import SandboxProvider
     from amelia.server.events.bus import EventBus
 
 
@@ -117,9 +119,10 @@ class Reviewer:
     def __init__(
         self,
         config: AgentConfig,
-        event_bus: "EventBus | None" = None,
+        event_bus: EventBus | None = None,
         prompts: dict[str, str] | None = None,
         agent_name: str = "reviewer",
+        sandbox_provider: SandboxProvider | None = None,
     ):
         """Initialize the Reviewer agent.
 
@@ -130,12 +133,14 @@ class Reviewer:
                 Supports key: "reviewer.agentic".
             agent_name: Name used in logs/events. Use "task_reviewer" for task-based
                 execution to distinguish from final review.
+            sandbox_provider: Optional shared sandbox provider for sandbox reuse.
 
         """
         self.driver = get_driver(
             config.driver,
             model=config.model,
             sandbox_config=config.sandbox,
+            sandbox_provider=sandbox_provider,
             profile_name=config.profile_name,
             options=config.options,
         )
@@ -148,7 +153,7 @@ class Reviewer:
     def agentic_prompt(self) -> str:
         return self._prompts.get("reviewer.agentic", self.AGENTIC_REVIEW_PROMPT)
 
-    def _extract_task_context(self, state: "ImplementationState") -> str | None:
+    def _extract_task_context(self, state: ImplementationState) -> str | None:
         """Extract task context from execution state.
 
         For multi-task execution, extracts only the current task section
@@ -233,7 +238,7 @@ class Reviewer:
 
     async def agentic_review(
         self,
-        state: "ImplementationState",
+        state: ImplementationState,
         base_commit: str,
         profile: Profile,
         *,

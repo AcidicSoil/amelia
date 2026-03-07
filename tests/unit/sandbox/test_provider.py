@@ -23,6 +23,20 @@ class FakeSandboxProvider:
     async def teardown(self) -> None:
         pass
 
+    async def write_file(self, path: str, content: bytes) -> None:
+        pass
+
+    def resolve_cwd(self, cwd: str) -> str:
+        return cwd
+
+    @property
+    def worker_cmd(self) -> list[str]:
+        return ["python", "-m", "amelia.sandbox.worker"]
+
+    @property
+    def worker_env(self) -> dict[str, str]:
+        return {}
+
     async def health_check(self) -> bool:
         return True
 

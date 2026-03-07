@@ -4,6 +4,8 @@ This module provides the Evaluator agent that evaluates review feedback
 against the actual codebase, applying a decision matrix to determine
 which items to implement, reject, defer, or clarify.
 """
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -29,6 +31,7 @@ from amelia.server.models.events import (
 
 if TYPE_CHECKING:
     from amelia.pipelines.implementation.state import ImplementationState
+    from amelia.sandbox.provider import SandboxProvider
     from amelia.server.events.bus import EventBus
 
 
@@ -74,8 +77,9 @@ Provide clear evidence for each disposition decision."""
     def __init__(
         self,
         config: AgentConfig,
-        event_bus: "EventBus | None" = None,
+        event_bus: EventBus | None = None,
         prompts: dict[str, str] | None = None,
+        sandbox_provider: SandboxProvider | None = None,
     ):
         """Initialize the Evaluator agent.
 
@@ -83,9 +87,17 @@ Provide clear evidence for each disposition decision."""
             config: Agent configuration with driver, model, and options.
             event_bus: Optional EventBus for emitting workflow events.
             prompts: Optional dict of prompt_id -> content for customization.
+            sandbox_provider: Optional shared sandbox provider for sandbox reuse.
 
         """
-        self.driver = get_driver(config.driver, model=config.model)
+        self.driver = get_driver(
+            config.driver,
+            model=config.model,
+            sandbox_config=config.sandbox,
+            sandbox_provider=sandbox_provider,
+            profile_name=config.profile_name,
+            options=config.options,
+        )
         self.options = config.options
         self._event_bus = event_bus
         self._prompts = prompts or {}
@@ -110,7 +122,7 @@ Provide clear evidence for each disposition decision."""
         """
         return self._prompts.get(self.PROMPT_KEY_SYSTEM, self.SYSTEM_PROMPT)
 
-    def _build_prompt(self, state: "ImplementationState") -> str:
+    def _build_prompt(self, state: ImplementationState) -> str:
         """Build the user prompt for evaluation from state.
 
         Args:
@@ -164,7 +176,7 @@ Return your evaluation as an EvaluationOutput with all items and a summary.""")
 
     async def evaluate(
         self,
-        state: "ImplementationState",
+        state: ImplementationState,
         profile: Profile,
         *,
         workflow_id: uuid.UUID,

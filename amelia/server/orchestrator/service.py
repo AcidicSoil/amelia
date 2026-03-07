@@ -5,7 +5,7 @@ import contextlib
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
 import httpx
@@ -22,7 +22,12 @@ from amelia.core.types import (
     Design,
     Issue,
     Profile,
+    SandboxMode,
 )
+
+
+if TYPE_CHECKING:
+    from amelia.sandbox.provider import SandboxProvider
 from amelia.pipelines.implementation import create_implementation_graph
 from amelia.pipelines.implementation.external_plan import (
     ExternalPlanImportResult,
@@ -1079,6 +1084,7 @@ class OrchestratorService:
         self,
         workflow_id: uuid.UUID,
         state: ServerExecutionState,
+        sandbox_provider: "SandboxProvider | None" = None,
     ) -> None:
         """Execute workflow via LangGraph with interrupt support.
 
@@ -1125,6 +1131,7 @@ class OrchestratorService:
                 "profile": profile,
                 "repository": self._repository,
                 "prompts": prompts,
+                "sandbox_provider": sandbox_provider,
             },
         }
 
@@ -1242,59 +1249,98 @@ class OrchestratorService:
         if profile is None:
             return
         retry_config = profile.retry
-        attempt = 0
 
-        while attempt <= retry_config.max_retries:
-            try:
-                await self._run_workflow(workflow_id, state)
-                return  # Success
+        # Create shared sandbox provider if Daytona mode
+        sandbox_provider = None
+        try:
+            if profile.sandbox.mode == SandboxMode.DAYTONA:
+                from amelia.drivers.factory import create_daytona_provider  # noqa: PLC0415
 
-            except TRANSIENT_EXCEPTIONS as e:
-                attempt += 1
-
-                if attempt > retry_config.max_retries:
-                    logger.exception("Workflow failed after retries exhausted", workflow_id=workflow_id)
+                agent_options = None
+                # Use developer agent options for LLM provider resolution
+                try:
+                    dev_config = profile.get_agent_config("developer")
+                    agent_options = dev_config.options
+                except ValueError:
+                    pass
+                try:
+                    provider, _worker_env = create_daytona_provider(
+                        profile.sandbox, options=agent_options, retry_config=profile.retry,
+                    )
+                    await provider.ensure_running()
+                    sandbox_provider = provider
+                except Exception as e:
+                    logger.exception("Daytona sandbox bootstrap failed", workflow_id=workflow_id)
                     await self._emit(
                         workflow_id,
                         EventType.WORKFLOW_FAILED,
-                        f"Workflow failed after {attempt} attempts: {e!s}",
-                        data={"error": str(e), "attempts": attempt},
+                        f"Sandbox bootstrap failed: {e!s}",
+                        data={"error": str(e), "error_type": "sandbox_bootstrap"},
                     )
                     await self._repository.set_status(
+                        workflow_id, WorkflowStatus.FAILED, failure_reason=f"Sandbox bootstrap failed: {e}"
+                    )
+                    return
+
+            attempt = 0
+
+            while attempt <= retry_config.max_retries:
+                try:
+                    await self._run_workflow(workflow_id, state, sandbox_provider=sandbox_provider)
+                    return  # Success
+
+                except TRANSIENT_EXCEPTIONS as e:
+                    attempt += 1
+
+                    if attempt > retry_config.max_retries:
+                        logger.exception("Workflow failed after retries exhausted", workflow_id=workflow_id)
+                        await self._emit(
+                            workflow_id,
+                            EventType.WORKFLOW_FAILED,
+                            f"Workflow failed after {attempt} attempts: {e!s}",
+                            data={"error": str(e), "attempts": attempt},
+                        )
+                        await self._repository.set_status(
+                            workflow_id,
+                            WorkflowStatus.FAILED,
+                            failure_reason=f"Failed after {attempt} attempts: {e}",
+                        )
+                        raise
+
+                    # Cap exponent at 31 to prevent overflow (2^32 exceeds 32-bit int)
+                    delay = min(
+                        retry_config.base_delay * (2 ** min(attempt - 1, 31)),
+                        retry_config.max_delay,
+                    )
+                    logger.warning(
+                        "Transient error, retrying",
+                        workflow_id=workflow_id,
+                        attempt=attempt,
+                        max_retries=retry_config.max_retries,
+                        delay=delay,
+                        error=str(e),
+                    )
+                    await asyncio.sleep(delay)
+
+                except Exception as e:
+                    # Non-transient error - fail immediately
+                    logger.exception("Workflow failed with non-transient error", workflow_id=workflow_id)
+                    await self._emit(
                         workflow_id,
-                        WorkflowStatus.FAILED,
-                        failure_reason=f"Failed after {attempt} attempts: {e}",
+                        EventType.WORKFLOW_FAILED,
+                        f"Workflow failed: {e!s}",
+                        data={"error": str(e), "error_type": "non-transient"},
+                    )
+                    await self._repository.set_status(
+                        workflow_id, WorkflowStatus.FAILED, failure_reason=str(e)
                     )
                     raise
-
-                # Cap exponent at 31 to prevent overflow (2^32 exceeds 32-bit int)
-                delay = min(
-                    retry_config.base_delay * (2 ** min(attempt - 1, 31)),
-                    retry_config.max_delay,
-                )
-                logger.warning(
-                    "Transient error, retrying",
-                    workflow_id=workflow_id,
-                    attempt=attempt,
-                    max_retries=retry_config.max_retries,
-                    delay=delay,
-                    error=str(e),
-                )
-                await asyncio.sleep(delay)
-
-            except Exception as e:
-                # Non-transient error - fail immediately
-                logger.exception("Workflow failed with non-transient error", workflow_id=workflow_id)
-                await self._emit(
-                    workflow_id,
-                    EventType.WORKFLOW_FAILED,
-                    f"Workflow failed: {e!s}",
-                    data={"error": str(e), "error_type": "non-transient"},
-                )
-                await self._repository.set_status(
-                    workflow_id, WorkflowStatus.FAILED, failure_reason=str(e)
-                )
-                raise
+        finally:
+            if sandbox_provider is not None:
+                try:
+                    await sandbox_provider.teardown()
+                except Exception:
+                    logger.warning("Sandbox teardown failed", exc_info=True)
 
     async def _run_review_workflow(
         self,
@@ -1334,71 +1380,107 @@ class OrchestratorService:
             checkpointer=self._checkpointer,
         )
 
-        # Pass event_bus via config
-        # Step limit: 4 base + 3 per task + buffer (default 100 handles ~30 tasks)
-        config: RunnableConfig = {
-            "recursion_limit": 100,
-            "configurable": {
-                "thread_id": str(workflow_id),
-                "execution_mode": "server",
-                "event_bus": self._event_bus,
-                "profile": profile,
-                "repository": self._repository,
-                "prompts": prompts,
-            },
-        }
-
-        await self._emit(
-            workflow_id,
-            EventType.WORKFLOW_STARTED,
-            "Review workflow started",
-            data={"issue_id": state.issue_id, "workflow_type": "review"},
-        )
-
+        # Create shared sandbox provider if Daytona mode
+        sandbox_provider = None
         try:
-            await self._repository.set_status(workflow_id, WorkflowStatus.IN_PROGRESS)
+            if profile.sandbox.mode == SandboxMode.DAYTONA:
+                from amelia.drivers.factory import create_daytona_provider  # noqa: PLC0415
 
-            # Convert Pydantic model to JSON-serializable dict for checkpointing
-            initial_state = execution_state.model_dump(mode="json")
+                agent_options = None
+                try:
+                    dev_config = profile.get_agent_config("developer")
+                    agent_options = dev_config.options
+                except ValueError:
+                    pass
+                provider, _worker_env = create_daytona_provider(
+                    profile.sandbox, options=agent_options, retry_config=profile.retry,
+                )
+                await provider.ensure_running()
+                sandbox_provider = provider
 
-            async for chunk in graph.astream(
-                initial_state,
-                config=config,
-                stream_mode=["updates", "tasks"],
-            ):
-                # Combined mode returns (mode, data) tuples
-                # Cast for type checker - astream with list mode returns tuples
-                chunk_tuple = cast(tuple[str, Any], chunk)
-                # No interrupt handling - review graph runs autonomously
-                # But we still need to check for unexpected interrupts
-                if self._is_interrupt_chunk(chunk_tuple):
-                    mode, data = chunk_tuple
-                    logger.warning(
-                        "Unexpected interrupt in review workflow",
-                        workflow_id=workflow_id,
-                    )
-                    continue
-                # Emit stage events for each node
-                await self._handle_combined_stream_chunk(workflow_id, chunk_tuple)
+            # Pass event_bus via config
+            # Step limit: 4 base + 3 per task + buffer (default 100 handles ~30 tasks)
+            config: RunnableConfig = {
+                "recursion_limit": 100,
+                "configurable": {
+                    "thread_id": str(workflow_id),
+                    "execution_mode": "server",
+                    "event_bus": self._event_bus,
+                    "profile": profile,
+                    "repository": self._repository,
+                    "prompts": prompts,
+                    "sandbox_provider": sandbox_provider,
+                },
+            }
 
             await self._emit(
                 workflow_id,
-                EventType.WORKFLOW_COMPLETED,
-                "Review workflow completed",
+                EventType.WORKFLOW_STARTED,
+                "Review workflow started",
+                data={"issue_id": state.issue_id, "workflow_type": "review"},
             )
-            await self._repository.set_status(workflow_id, WorkflowStatus.COMPLETED)
 
-        except Exception as e:
-            logger.exception("Review workflow failed", workflow_id=workflow_id)
-            await self._emit(
-                workflow_id,
-                EventType.WORKFLOW_FAILED,
-                f"Review workflow failed: {e}",
-                data={"error": str(e)},
-            )
-            await self._repository.set_status(
-                workflow_id, WorkflowStatus.FAILED, failure_reason=str(e)
-            )
+            try:
+                await self._repository.set_status(workflow_id, WorkflowStatus.IN_PROGRESS)
+
+                # Convert Pydantic model to JSON-serializable dict for checkpointing
+                initial_state = execution_state.model_dump(mode="json")
+
+                async for chunk in graph.astream(
+                    initial_state,
+                    config=config,
+                    stream_mode=["updates", "tasks"],
+                ):
+                    # Combined mode returns (mode, data) tuples
+                    # Cast for type checker - astream with list mode returns tuples
+                    chunk_tuple = cast(tuple[str, Any], chunk)
+                    # No interrupt handling - review graph runs autonomously
+                    # But we still need to check for unexpected interrupts
+                    if self._is_interrupt_chunk(chunk_tuple):
+                        mode, data = chunk_tuple
+                        logger.warning(
+                            "Unexpected interrupt in review workflow",
+                            workflow_id=workflow_id,
+                        )
+                        await self._emit(
+                            workflow_id,
+                            EventType.WORKFLOW_FAILED,
+                            "Review workflow aborted due to unexpected interrupt",
+                            data={"error": "unexpected_interrupt"},
+                        )
+                        await self._repository.set_status(
+                            workflow_id,
+                            WorkflowStatus.FAILED,
+                            failure_reason="Unexpected interrupt in review workflow",
+                        )
+                        return
+                    # Emit stage events for each node
+                    await self._handle_combined_stream_chunk(workflow_id, chunk_tuple)
+
+                await self._emit(
+                    workflow_id,
+                    EventType.WORKFLOW_COMPLETED,
+                    "Review workflow completed",
+                )
+                await self._repository.set_status(workflow_id, WorkflowStatus.COMPLETED)
+
+            except Exception as e:
+                logger.exception("Review workflow failed", workflow_id=workflow_id)
+                await self._emit(
+                    workflow_id,
+                    EventType.WORKFLOW_FAILED,
+                    f"Review workflow failed: {e}",
+                    data={"error": str(e)},
+                )
+                await self._repository.set_status(
+                    workflow_id, WorkflowStatus.FAILED, failure_reason=str(e)
+                )
+        finally:
+            if sandbox_provider is not None:
+                try:
+                    await sandbox_provider.teardown()
+                except Exception:
+                    logger.warning("Sandbox teardown failed", exc_info=True)
 
     async def _emit(
         self,
@@ -1558,6 +1640,8 @@ class OrchestratorService:
                 agent="human_approval",
             )
 
+            await self._repository.set_status(workflow_id, WorkflowStatus.IN_PROGRESS)
+
         # Get profile from settings using profile_id
         if workflow.profile_id is None:
             logger.error("No profile_id in workflow", workflow_id=workflow_id)
@@ -1577,116 +1661,138 @@ class OrchestratorService:
         # Resume LangGraph execution with updated state
         graph = self._create_server_graph(self._checkpointer)
 
-        # Pass event_bus via config
-        config: RunnableConfig = {
-            "recursion_limit": 100,
-            "configurable": {
-                "thread_id": str(workflow_id),
-                "execution_mode": "server",
-                "event_bus": self._event_bus,
-                "profile": profile,
-                "repository": self._repository,
-                "prompts": prompts,
-            },
-        }
+        # Create shared sandbox provider if Daytona mode (same as _run_workflow_with_retry)
+        sandbox_provider: SandboxProvider | None = None
+        try:
+            if profile.sandbox.mode == SandboxMode.DAYTONA:
+                from amelia.drivers.factory import create_daytona_provider  # noqa: PLC0415
 
-        # Update checkpoint state with approval decision
-        await graph.aupdate_state(config, {"human_approved": True})
-
-        # Update status to in_progress before resuming
-        await self._repository.set_status(workflow_id, WorkflowStatus.IN_PROGRESS)
-
-        # Resume execution from checkpoint with retry for transient errors
-        retry_config = profile.retry
-        attempt = 0
-        success = False
-
-        while attempt <= retry_config.max_retries and not success:
-            try:
-                async for chunk in graph.astream(
-                    None,  # Resume from checkpoint, no new input needed
-                    config=config,
-                    stream_mode=["updates", "tasks"],
-                ):
-                    # Combined mode returns (mode, data) tuples
-                    # Cast for type checker - astream with list mode returns tuples
-                    chunk_tuple = cast(tuple[str, Any], chunk)
-                    # In agentic mode, no interrupts expected after initial approval
-                    if self._is_interrupt_chunk(chunk_tuple):
-                        _, data = chunk_tuple
-                        state = await graph.aget_state(config)
-                        next_nodes = state.next if state else []
-                        logger.warning(
-                            "Unexpected interrupt after approval",
-                            workflow_id=workflow_id,
-                            next_nodes=next_nodes,
-                        )
-                        continue
-                    await self._handle_combined_stream_chunk(workflow_id, chunk_tuple)
-
-                # Workflow completed after human approval.
-                # Note: A separate COMPLETED emission exists in _run_workflow() for
-                # workflows that complete without interruption. These are mutually exclusive
-                # code paths - only one COMPLETED event is ever emitted per workflow.
-
-                # Check for task failure before marking complete (multi-task mode)
-                await self._emit_task_failed_if_applicable(workflow_id)
-
-                await self._emit(
-                    workflow_id,
-                    EventType.WORKFLOW_COMPLETED,
-                    "Workflow completed successfully",
+                agent_options = None
+                try:
+                    dev_config = profile.get_agent_config("developer")
+                    agent_options = dev_config.options
+                except ValueError:
+                    pass
+                provider, _worker_env = create_daytona_provider(
+                    profile.sandbox, options=agent_options, retry_config=profile.retry,
                 )
-                await self._repository.set_status(workflow_id, WorkflowStatus.COMPLETED)
-                success = True
+                await provider.ensure_running()
+                sandbox_provider = provider
 
-            except TRANSIENT_EXCEPTIONS as e:
-                attempt += 1
+            # Pass event_bus via config
+            config: RunnableConfig = {
+                "recursion_limit": 100,
+                "configurable": {
+                    "thread_id": str(workflow_id),
+                    "execution_mode": "server",
+                    "event_bus": self._event_bus,
+                    "profile": profile,
+                    "repository": self._repository,
+                    "prompts": prompts,
+                    "sandbox_provider": sandbox_provider,
+                },
+            }
 
-                if attempt > retry_config.max_retries:
-                    logger.exception(
-                        "Workflow failed after approval retries exhausted",
-                        workflow_id=workflow_id,
+            # Update checkpoint state with approval decision
+            await graph.aupdate_state(config, {"human_approved": True})
+
+            # Resume execution from checkpoint with retry for transient errors
+            retry_config = profile.retry
+            attempt = 0
+            success = False
+
+            while attempt <= retry_config.max_retries and not success:
+                try:
+                    async for chunk in graph.astream(
+                        None,  # Resume from checkpoint, no new input needed
+                        config=config,
+                        stream_mode=["updates", "tasks"],
+                    ):
+                        # Combined mode returns (mode, data) tuples
+                        # Cast for type checker - astream with list mode returns tuples
+                        chunk_tuple = cast(tuple[str, Any], chunk)
+                        # In agentic mode, no interrupts expected after initial approval
+                        if self._is_interrupt_chunk(chunk_tuple):
+                            _, data = chunk_tuple
+                            state = await graph.aget_state(config)
+                            next_nodes = state.next if state else []
+                            logger.warning(
+                                "Unexpected interrupt after approval",
+                                workflow_id=workflow_id,
+                                next_nodes=next_nodes,
+                            )
+                            continue
+                        await self._handle_combined_stream_chunk(workflow_id, chunk_tuple)
+
+                    # Workflow completed after human approval.
+                    # Note: A separate COMPLETED emission exists in _run_workflow() for
+                    # workflows that complete without interruption. These are mutually exclusive
+                    # code paths - only one COMPLETED event is ever emitted per workflow.
+
+                    # Check for task failure before marking complete (multi-task mode)
+                    await self._emit_task_failed_if_applicable(workflow_id)
+
+                    await self._emit(
+                        workflow_id,
+                        EventType.WORKFLOW_COMPLETED,
+                        "Workflow completed successfully",
                     )
+                    await self._repository.set_status(workflow_id, WorkflowStatus.COMPLETED)
+                    success = True
+
+                except TRANSIENT_EXCEPTIONS as e:
+                    attempt += 1
+
+                    if attempt > retry_config.max_retries:
+                        logger.exception(
+                            "Workflow failed after approval retries exhausted",
+                            workflow_id=workflow_id,
+                        )
+                        await self._emit(
+                            workflow_id,
+                            EventType.WORKFLOW_FAILED,
+                            f"Workflow failed after {attempt} attempts: {e!s}",
+                            data={"error": str(e), "attempts": attempt},
+                        )
+                        await self._repository.set_status(
+                            workflow_id,
+                            WorkflowStatus.FAILED,
+                            failure_reason=f"Failed after {attempt} attempts: {e}",
+                        )
+                        raise
+
+                    delay = min(
+                        retry_config.base_delay * (2 ** min(attempt - 1, 31)),
+                        retry_config.max_delay,
+                    )
+                    logger.warning(
+                        "Transient error after approval, retrying",
+                        workflow_id=workflow_id,
+                        attempt=attempt,
+                        max_retries=retry_config.max_retries,
+                        delay=delay,
+                        error=str(e),
+                    )
+                    await asyncio.sleep(delay)
+
+                except Exception as e:
+                    logger.exception("Workflow failed after approval", workflow_id=workflow_id)
                     await self._emit(
                         workflow_id,
                         EventType.WORKFLOW_FAILED,
-                        f"Workflow failed after {attempt} attempts: {e!s}",
-                        data={"error": str(e), "attempts": attempt},
+                        f"Workflow failed: {e!s}",
+                        data={"error": str(e)},
                     )
                     await self._repository.set_status(
-                        workflow_id,
-                        WorkflowStatus.FAILED,
-                        failure_reason=f"Failed after {attempt} attempts: {e}",
+                        workflow_id, WorkflowStatus.FAILED, failure_reason=str(e)
                     )
                     raise
-
-                delay = min(
-                    retry_config.base_delay * (2 ** min(attempt - 1, 31)),
-                    retry_config.max_delay,
-                )
-                logger.warning(
-                    "Transient error after approval, retrying",
-                    workflow_id=workflow_id,
-                    attempt=attempt,
-                    max_retries=retry_config.max_retries,
-                    delay=delay,
-                    error=str(e),
-                )
-                await asyncio.sleep(delay)
-
-            except Exception as e:
-                logger.exception("Workflow failed after approval", workflow_id=workflow_id)
-                await self._emit(
-                    workflow_id,
-                    EventType.WORKFLOW_FAILED,
-                    f"Workflow failed: {e!s}",
-                    data={"error": str(e)},
-                )
-                await self._repository.set_status(
-                    workflow_id, WorkflowStatus.FAILED, failure_reason=str(e)
-                )
-                raise
+        finally:
+            if sandbox_provider is not None:
+                try:
+                    await sandbox_provider.teardown()
+                except Exception:
+                    logger.warning("Sandbox teardown failed", exc_info=True)
 
     async def reject_workflow(
         self,
@@ -2337,23 +2443,41 @@ class OrchestratorService:
 
         graph = self._create_server_graph(self._checkpointer)
 
-        config: RunnableConfig = {
-            "recursion_limit": 100,
-            "configurable": {
-                "thread_id": str(workflow_id),
-                "execution_mode": "server",
-                "event_bus": self._event_bus,
-                "profile": profile,
-                "repository": self._repository,
-                "prompts": prompts,
-            },
-        }
-
+        # Create shared sandbox provider if Daytona mode (same as _run_workflow_with_retry)
+        sandbox_provider: SandboxProvider | None = None
         try:
+            if profile.sandbox.mode == SandboxMode.DAYTONA:
+                from amelia.drivers.factory import create_daytona_provider  # noqa: PLC0415
+
+                agent_options = None
+                try:
+                    arch_config = profile.get_agent_config("architect")
+                    agent_options = arch_config.options
+                except ValueError:
+                    pass
+                provider, _worker_env = create_daytona_provider(
+                    profile.sandbox, options=agent_options, retry_config=profile.retry,
+                )
+                await provider.ensure_running()
+                sandbox_provider = provider
+
+            config: RunnableConfig = {
+                "recursion_limit": 100,
+                "configurable": {
+                    "thread_id": str(workflow_id),
+                    "execution_mode": "server",
+                    "event_bus": self._event_bus,
+                    "profile": profile,
+                    "repository": self._repository,
+                    "prompts": prompts,
+                    "sandbox_provider": sandbox_provider,
+                },
+            }
+
+            was_interrupted = False
             # Convert Pydantic model to JSON-serializable dict for checkpointing
             input_state = execution_state.model_dump(mode="json")
 
-            was_interrupted = False
             async for chunk in graph.astream(
                 input_state,
                 config=config,
@@ -2446,6 +2570,12 @@ class OrchestratorService:
                 workflow_id=workflow_id,
                 error=str(e),
             )
+        finally:
+            if sandbox_provider is not None:
+                try:
+                    await sandbox_provider.teardown()
+                except Exception:
+                    logger.warning("Sandbox teardown failed", exc_info=True)
 
     async def queue_and_plan_workflow(
         self,

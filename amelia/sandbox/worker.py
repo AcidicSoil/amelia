@@ -17,16 +17,92 @@ import os
 import sys
 import tempfile
 import time
+from enum import StrEnum
 from typing import Any, TextIO, cast
 
 from loguru import logger
 from pydantic import BaseModel, ValidationError
 
-from amelia.drivers.base import (
-    AgenticMessage,
-    AgenticMessageType,
-    DriverUsage,
-)
+
+# --- Inlined types (standalone: no amelia imports in the container) --------
+
+class DriverUsage(BaseModel):
+    """Token usage data returned by drivers.
+
+    All fields optional - drivers populate what they can.
+    """
+
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cache_read_tokens: int | None = None
+    cache_creation_tokens: int | None = None
+    cost_usd: float | None = None
+    duration_ms: int | None = None
+    num_turns: int | None = None
+    model: str | None = None
+
+
+class AgenticMessageType(StrEnum):
+    """Types of messages yielded during agentic execution."""
+
+    THINKING = "thinking"
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
+    RESULT = "result"
+    USAGE = "usage"
+
+
+class AgenticMessage(BaseModel):
+    """Unified message type for agentic execution across all drivers."""
+
+    type: AgenticMessageType
+    content: str | None = None
+    tool_name: str | None = None
+    tool_input: dict[str, Any] | None = None
+    tool_output: str | None = None
+    tool_call_id: str | None = None
+    session_id: str | None = None
+    is_error: bool = False
+    model: str | None = None
+    usage: DriverUsage | None = None
+
+
+# Mapping of CLI-specific tool names to normalized canonical names.
+TOOL_NAME_ALIASES: dict[str, str] = {
+    "Read": "read_file",
+    "Write": "write_file",
+    "Edit": "edit_file",
+    "NotebookEdit": "notebook_edit",
+    "Glob": "glob",
+    "Grep": "grep",
+    "Bash": "run_shell_command",
+    "Task": "task",
+    "TaskOutput": "task_output",
+    "TaskStop": "task_stop",
+    "EnterPlanMode": "enter_plan_mode",
+    "ExitPlanMode": "exit_plan_mode",
+    "AskUserQuestion": "ask_user_question",
+    "Skill": "skill",
+    "TaskCreate": "task_create",
+    "TaskGet": "task_get",
+    "TaskUpdate": "task_update",
+    "TaskList": "task_list",
+    "WebFetch": "web_fetch",
+    "WebSearch": "web_search",
+    "KnowledgeSearch": "knowledge_search",
+}
+
+
+def normalize_tool_name(raw_name: str) -> str:
+    """Normalize driver-specific tool name to standard tool name.
+
+    Args:
+        raw_name: The raw tool name from a driver (e.g., "Write", "Bash").
+
+    Returns:
+        The normalized tool name (e.g., "write_file"), or raw_name if no alias exists.
+    """
+    return TOOL_NAME_ALIASES.get(raw_name, raw_name)
 
 
 def _emit_line(msg: AgenticMessage, file: TextIO = sys.stdout) -> None:
@@ -131,15 +207,30 @@ def _create_worker_chat_model(model: str, base_url: str | None = None) -> Any:
     from langchain.chat_models import init_chat_model  # noqa: PLC0415
 
     if base_url:
-        # Route through proxy — use openai-compatible interface.
-        # The proxy requires X-Amelia-Profile to resolve provider config.
+        # Route through proxy or direct API — use openai-compatible interface.
+        # When going through the local proxy, api_key is "proxy-managed".
+        # When calling the LLM API directly (e.g. Daytona), use OPENAI_API_KEY.
+        api_key = os.environ.get("OPENAI_API_KEY", "proxy-managed")
         profile = os.environ.get("AMELIA_PROFILE", "")
+        headers: dict[str, str] = {}
+        if profile:
+            headers["X-Amelia-Profile"] = profile
+
+        # Inject OpenRouter app attribution headers so requests from
+        # Daytona sandbox workers show "Amelia" instead of "unknown".
+        if "openrouter.ai" in base_url:
+            headers["HTTP-Referer"] = os.environ.get(
+                "OPENROUTER_SITE_URL",
+                "https://github.com/existential-birds/amelia",
+            )
+            headers["X-Title"] = os.environ.get("OPENROUTER_SITE_NAME", "Amelia")
+
         return init_chat_model(
             model=model,
             model_provider="openai",
             base_url=base_url,
-            api_key="proxy-managed",
-            default_headers={"X-Amelia-Profile": profile},
+            api_key=api_key,
+            default_headers=headers,
         )
     return init_chat_model(model)
 
@@ -154,13 +245,11 @@ async def _run_agentic(args: argparse.Namespace) -> None:
     from deepagents.backends import FilesystemBackend  # noqa: PLC0415
     from langchain_core.messages import AIMessage, HumanMessage, ToolMessage  # noqa: PLC0415
 
-    from amelia.core.constants import normalize_tool_name  # noqa: PLC0415
-
     prompt = _read_prompt(args.prompt_file)
     base_url = os.environ.get("LLM_PROXY_URL")
 
     chat_model = _create_worker_chat_model(args.model, base_url=base_url)
-    backend = FilesystemBackend(root_dir=args.cwd)
+    backend = FilesystemBackend(root_dir=args.cwd, virtual_mode=True)
 
     agent = create_deep_agent(
         model=chat_model,
@@ -283,7 +372,7 @@ async def _run_generate(args: argparse.Namespace) -> None:
     if schema:
         agent = create_deep_agent(
             model=chat_model,
-            backend=FilesystemBackend(root_dir=tempfile.gettempdir()),
+            backend=FilesystemBackend(root_dir=tempfile.gettempdir(), virtual_mode=True),
             response_format=ToolStrategy(schema=schema),
         )
         result = await agent.ainvoke({"messages": [HumanMessage(content=prompt)]})

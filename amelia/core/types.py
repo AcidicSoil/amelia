@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # Default allowed hosts for sandbox network allowlist
@@ -23,6 +23,7 @@ DEFAULT_NETWORK_ALLOWED_HOSTS: tuple[str, ...] = (
     "registry.npmjs.org",
     "pypi.org",
     "files.pythonhosted.org",
+    "app.daytona.io",
 )
 
 
@@ -47,10 +48,39 @@ class SandboxMode(StrEnum):
 
     NONE = "none"
     CONTAINER = "container"
+    DAYTONA = "daytona"
+
+
+class DaytonaResources(BaseModel):
+    """Resource configuration for Daytona sandbox instances.
+
+    Attributes:
+        cpu: Number of CPU cores.
+        memory: Memory in GB.
+        disk: Disk space in GB.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    cpu: int = Field(default=2, gt=0)
+    memory: int = Field(default=4, gt=0)
+    disk: int = Field(default=10, gt=0)
 
 
 class SandboxConfig(BaseModel):
-    """Sandbox execution configuration for a profile."""
+    """Sandbox execution configuration for a profile.
+
+    Attributes:
+        mode: Sandbox mode ('none' = direct execution, 'container' = Docker sandbox,
+            'daytona' = Daytona cloud sandbox).
+        image: Docker image for sandbox container.
+        network_allowlist_enabled: Whether to restrict outbound network.
+        network_allowed_hosts: Hosts allowed when network allowlist is enabled.
+        repo_url: Git remote URL to clone into the sandbox.
+        daytona_api_url: Daytona API endpoint URL.
+        daytona_target: Daytona target region.
+        daytona_resources: Optional CPU/memory/disk resource configuration.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -60,6 +90,26 @@ class SandboxConfig(BaseModel):
     network_allowed_hosts: tuple[str, ...] = Field(
         default_factory=lambda: DEFAULT_NETWORK_ALLOWED_HOSTS,
     )
+
+    # Remote sandbox fields (Daytona)
+    repo_url: str | None = None
+    daytona_api_url: str = "https://app.daytona.io/api"
+    daytona_target: str = "us"
+    daytona_resources: DaytonaResources | None = None
+    daytona_image: str = "python:3.12-slim"
+    daytona_snapshot: str | None = None
+    daytona_timeout: float = Field(default=120.0, gt=0)
+
+    @model_validator(mode="after")
+    def _validate_daytona(self) -> "SandboxConfig":
+        if self.mode == SandboxMode.DAYTONA:
+            if not self.repo_url:
+                raise ValueError("repo_url is required when mode='daytona'")
+            if self.network_allowlist_enabled:
+                raise ValueError(
+                    "Network allowlist is not supported with Daytona sandboxes"
+                )
+        return self
 
 
 class AgentConfig(BaseModel):

@@ -24,9 +24,15 @@ from amelia.sandbox.provider import SandboxProvider
 class ContainerDriver:
     """Driver that executes LLM operations inside a sandbox container."""
 
-    def __init__(self, model: str, provider: SandboxProvider) -> None:
+    def __init__(
+        self,
+        model: str,
+        provider: SandboxProvider,
+        env: dict[str, str] | None = None,
+    ) -> None:
         self.model = model
         self._provider = provider
+        self._env = env
         self._last_usage: DriverUsage | None = None
 
     async def _write_prompt(self, prompt: str, workflow_id: str | None = None) -> str:
@@ -41,11 +47,7 @@ class ContainerDriver:
         """
         suffix = workflow_id or uuid4().hex[:12]
         prompt_path = f"/tmp/prompt-{suffix}.txt"
-        async for _ in self._provider.exec_stream(
-            ["tee", prompt_path],
-            stdin=prompt.encode(),
-        ):
-            pass
+        await self._provider.write_file(prompt_path, prompt.encode())
         return prompt_path
 
     async def _cleanup_prompt(self, prompt_path: str) -> None:
@@ -115,17 +117,21 @@ class ContainerDriver:
         workflow_id = kwargs.get("workflow_id")
         prompt_path = await self._write_prompt(prompt, workflow_id=workflow_id)
 
+        # Translate host path to sandbox-internal path (no-op for Docker,
+        # maps to /workspace/repo for Daytona).
+        sandbox_cwd = self._provider.resolve_cwd(cwd)
+
         try:
             cmd = [
-                "python", "-m", "amelia.sandbox.worker", "agentic",
+                *self._provider.worker_cmd, "agentic",
                 "--prompt-file", prompt_path,
-                "--cwd", cwd,
+                "--cwd", sandbox_cwd,
                 "--model", self.model,
             ]
             if instructions:
                 cmd.extend(["--instructions", instructions])
 
-            async for line in self._provider.exec_stream(cmd, cwd=cwd):
+            async for line in self._provider.exec_stream(cmd, cwd=sandbox_cwd, env=self._env):
                 msg = self._parse_line(line)
                 if msg.type == AgenticMessageType.USAGE:
                     self._last_usage = msg.usage
@@ -171,7 +177,7 @@ class ContainerDriver:
 
         try:
             cmd = [
-                "python", "-m", "amelia.sandbox.worker", "generate",
+                *self._provider.worker_cmd, "generate",
                 "--prompt-file", prompt_path,
                 "--model", self.model,
             ]
@@ -179,7 +185,7 @@ class ContainerDriver:
                 cmd.extend(["--schema", f"{schema.__module__}:{schema.__name__}"])
 
             result_content: str | None = None
-            async for line in self._provider.exec_stream(cmd):
+            async for line in self._provider.exec_stream(cmd, env=self._env):
                 msg = self._parse_line(line)
                 if msg.type == AgenticMessageType.USAGE:
                     self._last_usage = msg.usage
