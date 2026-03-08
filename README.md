@@ -149,10 +149,6 @@ Configuration is stored in SQLite (`~/.amelia/amelia.db`) and managed via CLI (`
 
 See [Configuration Reference](https://existential-birds.github.io/amelia/guide/configuration) for profile setup, server settings, and Jira integration.
 
-## Documentation
-
-For full documentation, visit **[existential-birds.github.io/amelia](https://existential-birds.github.io/amelia/)**.
-
 ## License
 
-Amelia is licensed under the [Apache License 2.0](LICENSE), a permissive open-source license that allows free use, modification, and distribution.
+Amelia is licensed under the [Apache License 2.0](LICENSE).
