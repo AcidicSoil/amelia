@@ -72,9 +72,9 @@ class TestRouteAfterTaskReview:
             status="running",
             current_task_index=0,
             total_tasks=3,
-            last_review=ReviewResult(
+            last_reviews=[ReviewResult(
                 reviewer_persona="Agentic", approved=True, comments=[], severity=Severity.NONE
-            ),
+            )],
         )
         assert route_after_task_review(state, profile) == "next_task_node"
 
@@ -87,9 +87,9 @@ class TestRouteAfterTaskReview:
             status="running",
             current_task_index=2,
             total_tasks=3,
-            last_review=ReviewResult(
+            last_reviews=[ReviewResult(
                 reviewer_persona="Agentic", approved=True, comments=[], severity=Severity.NONE
-            ),
+            )],
         )
         assert route_after_task_review(state, profile) == "__end__"
 
@@ -103,9 +103,9 @@ class TestRouteAfterTaskReview:
             current_task_index=0,
             total_tasks=3,
             task_review_iteration=1,
-            last_review=ReviewResult(
+            last_reviews=[ReviewResult(
                 reviewer_persona="Agentic", approved=False, comments=["fix X"], severity=Severity.MAJOR
-            ),
+            )],
         )
         assert route_after_task_review(state, profile) == "developer"
 
@@ -119,9 +119,9 @@ class TestRouteAfterTaskReview:
             current_task_index=0,
             total_tasks=3,
             task_review_iteration=2,  # == max_iterations
-            last_review=ReviewResult(
+            last_reviews=[ReviewResult(
                 reviewer_persona="Agentic", approved=False, comments=["fix X"], severity=Severity.MAJOR
-            ),
+            )],
         )
         assert route_after_task_review(state, profile) == "next_task_node"
 
@@ -135,9 +135,9 @@ class TestRouteAfterTaskReview:
             current_task_index=2,
             total_tasks=3,
             task_review_iteration=2,  # == max_iterations
-            last_review=ReviewResult(
+            last_reviews=[ReviewResult(
                 reviewer_persona="Agentic", approved=False, comments=["fix X"], severity=Severity.MAJOR
-            ),
+            )],
         )
         assert route_after_task_review(state, profile) == "__end__"
 

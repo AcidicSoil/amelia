@@ -149,12 +149,16 @@ Provide clear evidence for each disposition decision."""
             if issue_parts:
                 parts.append("## Issue Context\n\n" + "\n\n".join(issue_parts))
 
-        # Review feedback to evaluate
-        if not state.last_review:
+        # Review feedback to evaluate — aggregate comments from all reviews
+        if not state.last_reviews:
             raise ValueError("No review feedback found in state")
 
+        all_comments: list[str] = []
+        for review in state.last_reviews:
+            all_comments.extend(review.comments)
+
         parts.append("## Review Feedback to Evaluate\n")
-        for i, comment in enumerate(state.last_review.comments, start=1):
+        for i, comment in enumerate(all_comments, start=1):
             parts.append(f"### Item {i}\n\n{comment}\n")
 
         # Code changes context (if available)
@@ -187,7 +191,7 @@ Return your evaluation as an EvaluationOutput with all items and a summary.""")
         and assigns a disposition based on the decision matrix.
 
         Args:
-            state: Current implementation state with last_review containing feedback.
+            state: Current implementation state with last_reviews containing feedback.
             profile: Active profile with driver settings.
             workflow_id: Workflow identifier for streaming events.
 
@@ -195,14 +199,17 @@ Return your evaluation as an EvaluationOutput with all items and a summary.""")
             Tuple of (EvaluationResult, session_id from driver).
 
         Raises:
-            ValueError: If no last_review in state.
+            ValueError: If no last_reviews in state.
 
         """
-        if not state.last_review:
-            raise ValueError("ImplementationState must have last_review set for evaluation")
+        if not state.last_reviews:
+            raise ValueError("ImplementationState must have last_reviews set for evaluation")
 
-        # Handle empty review comments
-        if not state.last_review.comments:
+        # Handle empty review comments — aggregate from all reviews
+        all_comments: list[str] = []
+        for review in state.last_reviews:
+            all_comments.extend(review.comments)
+        if not all_comments:
             logger.warning(
                 "No review comments to evaluate, returning empty result",
                 agent="evaluator",
@@ -237,7 +244,7 @@ Return your evaluation as an EvaluationOutput with all items and a summary.""")
             "Built evaluation prompt",
             agent="evaluator",
             prompt_length=len(prompt),
-            comments_count=len(state.last_review.comments),
+            comments_count=len(all_comments),
         )
 
         response, new_session_id = await self.driver.generate(

@@ -2087,7 +2087,7 @@ class OrchestratorService:
         Called when workflow completes to check if the final task was not approved
         (indicating failure due to max iterations).
 
-        Note: This requires data from LangGraph checkpoint (last_review, task_review_iteration)
+        Note: This requires data from LangGraph checkpoint (last_reviews, task_review_iteration)
         which is not available in plan_cache. For now, this is a best-effort operation
         that returns early if the data is not available.
 
@@ -2108,8 +2108,8 @@ class OrchestratorService:
         if total_tasks is None:
             return
 
-        # Note: last_review and task_review_iteration are only in LangGraph checkpoint.
-        # Without access to last_review, we can't reliably determine if the task failed.
+        # Note: last_reviews and task_review_iteration are only in LangGraph checkpoint.
+        # Without access to last_reviews, we can't reliably determine if the task failed.
         # The TASK_FAILED event will be emitted by the graph nodes if needed.
         # TODO: Consider fetching from checkpoint if this event is critical.
         return
@@ -2230,27 +2230,30 @@ class OrchestratorService:
             workflow_id: The workflow ID.
             output: State updates from the reviewer node.
         """
-        last_review = output.get("last_review")
-        if not last_review:
+        last_reviews = output.get("last_reviews")
+        if not last_reviews:
             return
 
-        # Node returns ReviewResult Pydantic model directly
-        approved = last_review.approved
-        severity = last_review.severity
-        issue_count = len(last_review.comments) if last_review.comments else 0
+        # Emit a message for each review in the list
+        for last_review in last_reviews:
+            approved = last_review.approved
+            severity = last_review.severity
+            issue_count = len(last_review.comments) if last_review.comments else 0
+            persona = last_review.reviewer_persona or "reviewer"
 
-        await self._emit(
-            workflow_id,
-            EventType.AGENT_MESSAGE,
-            f"Review {'approved' if approved else 'requested changes'} "
-            f"({severity} severity, {issue_count} issues)",
-            agent="reviewer",
-            data={
-                "approved": approved,
-                "severity": severity,
-                "issue_count": issue_count,
-            },
-        )
+            await self._emit(
+                workflow_id,
+                EventType.AGENT_MESSAGE,
+                f"Review ({persona}) {'approved' if approved else 'requested changes'} "
+                f"({severity} severity, {issue_count} issues)",
+                agent="reviewer",
+                data={
+                    "approved": approved,
+                    "severity": severity,
+                    "issue_count": issue_count,
+                    "reviewer_persona": persona,
+                },
+            )
 
     async def _emit_evaluator_messages(
         self,

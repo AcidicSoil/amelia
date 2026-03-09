@@ -1125,10 +1125,10 @@ class TestTaskProgressEvents:
         orchestrator: OrchestratorService,
         mock_repository: AsyncMock,
     ) -> None:
-        """Should return early in task mode (last_review only in checkpoint)."""
+        """Should return early in task mode (last_reviews only in checkpoint)."""
         from amelia.server.models.state import PlanCache
 
-        # Current implementation returns early since last_review/task_review_iteration
+        # Current implementation returns early since last_reviews/task_review_iteration
         # are only available in LangGraph checkpoint, not plan_cache
         mock_state = ServerExecutionState(
             id=uuid4(),
@@ -1143,7 +1143,7 @@ class TestTaskProgressEvents:
 
         await orchestrator._emit_task_failed_if_applicable(mock_state.id)
 
-        # Currently returns early since last_review is only in checkpoint
+        # Currently returns early since last_reviews is only in checkpoint
         # TASK_FAILED events are emitted by graph nodes directly
         mock_repository.save_event.assert_not_called()
 

@@ -229,8 +229,13 @@ IMPLEMENTATION PLAN:
         parts.append(f"\n\nPlease complete the following task:\n\n{state.goal}")
 
         # Review feedback (if this is a review-fix iteration)
-        if state.last_review and not state.last_review.approved:
-            feedback = "\n".join(f"- {c}" for c in state.last_review.comments)
-            parts.append(f"\n\nThe reviewer requested the following changes:\n{feedback}")
+        if state.last_reviews:
+            rejected_comments: list[str] = []
+            for review in state.last_reviews:
+                if not review.approved:
+                    rejected_comments.extend(review.comments)
+            if rejected_comments:
+                feedback = "\n".join(f"- {c}" for c in rejected_comments)
+                parts.append(f"\n\nThe reviewer requested the following changes:\n{feedback}")
 
         return "\n".join(parts)

@@ -58,7 +58,7 @@ def route_after_task_review(
     """
     task_number = state.current_task_index + 1
     is_final_task = state.current_task_index + 1 >= state.total_tasks
-    approved = state.last_review.approved if state.last_review else False
+    approved = all(r.approved for r in state.last_reviews) if state.last_reviews else False
 
     if approved:
         if is_final_task:

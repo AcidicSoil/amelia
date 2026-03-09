@@ -171,8 +171,8 @@ class TestReviewerNodeIntegration:
         with patch.object(ApiDriver, "execute_agentic", mock_execute_agentic):
             result = await call_reviewer_node(state, cast(RunnableConfig, config))
 
-        assert result["last_review"] is not None
-        assert result["last_review"].approved is True
+        assert result["last_reviews"] is not None
+        assert result["last_reviews"][0].approved is True
 
     async def test_reviewer_node_rejection(self, tmp_path: Path) -> None:
         """Reviewer node should return rejection with feedback.
@@ -201,8 +201,8 @@ class TestReviewerNodeIntegration:
         with patch.object(ApiDriver, "execute_agentic", mock_execute_agentic):
             result = await call_reviewer_node(state, cast(RunnableConfig, config))
 
-        assert result["last_review"].approved is False
-        assert result["last_review"].severity == "critical"
+        assert result["last_reviews"][0].approved is False
+        assert result["last_reviews"][0].severity == "critical"
 
     async def test_reviewer_node_increments_review_iteration(self, tmp_path: Path) -> None:
         """Reviewer node should increment review_iteration after each review.
@@ -246,8 +246,8 @@ class TestReviewerNodeIntegration:
 
         assert result2["review_iteration"] == 2, "review_iteration should increment from 1 to 2"
 
-    async def test_reviewer_node_updates_last_review_each_round(self, tmp_path: Path) -> None:
-        """Reviewer node should update last_review with new results each round.
+    async def test_reviewer_node_updates_last_reviews_each_round(self, tmp_path: Path) -> None:
+        """Reviewer node should update last_reviews with new results each round.
 
         This verifies that the review results are different after developer
         makes changes, preventing the "same review message" infinite loop bug.
@@ -278,9 +278,9 @@ class TestReviewerNodeIntegration:
         with patch.object(ApiDriver, "execute_agentic", mock_execute_round1):
             result1 = await call_reviewer_node(state, cast(RunnableConfig, config))
 
-        assert result1["last_review"].approved is False
-        assert result1["last_review"].severity == "major"
-        assert len(result1["last_review"].comments) == 2
+        assert result1["last_reviews"][0].approved is False
+        assert result1["last_reviews"][0].severity == "major"
+        assert len(result1["last_reviews"][0].comments) == 2
 
         # Round 2: Simulate developer fixed one issue, reviewer now returns different result
         state_round2 = state.model_copy(update={
@@ -300,10 +300,10 @@ class TestReviewerNodeIntegration:
         with patch.object(ApiDriver, "execute_agentic", mock_execute_round2):
             result2 = await call_reviewer_node(state_round2, cast(RunnableConfig, config))
 
-        # Verify last_review is UPDATED, not stale
-        assert result2["last_review"].approved is False
+        # Verify last_reviews is UPDATED, not stale
+        assert result2["last_reviews"][0].approved is False
         # Note: severity mapping: "medium" comments go to Minor section, parsed as "medium"
-        assert len(result2["last_review"].comments) == 1, "comment count should change"
+        assert len(result2["last_reviews"][0].comments) == 1, "comment count should change"
 
         # Round 3: All fixed, approved
         state_round3 = state.model_copy(update={
@@ -319,7 +319,7 @@ class TestReviewerNodeIntegration:
         with patch.object(ApiDriver, "execute_agentic", mock_execute_round3):
             result3 = await call_reviewer_node(state_round3, cast(RunnableConfig, config))
 
-        assert result3["last_review"].approved is True, "should be approved in round 3"
+        assert result3["last_reviews"][0].approved is True, "should be approved in round 3"
         assert result3["review_iteration"] == 3
 
 

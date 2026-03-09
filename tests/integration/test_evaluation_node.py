@@ -56,7 +56,7 @@ class TestEvaluationNodeIntegration:
         state = make_execution_state(
             profile=profile,
             goal="Add feature X",
-            last_review=review_result,
+            last_reviews=[review_result],
             code_changes_for_review="diff --git a/test.py",
         )
         config = make_config(thread_id="test-eval-1", profile=profile)
@@ -140,7 +140,7 @@ class TestEvaluationNodeIntegration:
         state = make_execution_state(
             profile=profile,
             goal="Add feature X",
-            last_review=review_result,
+            last_reviews=[review_result],
         )
         config = make_config(thread_id="test-eval-empty", profile=profile)
 
@@ -186,7 +186,7 @@ class TestEvaluationNodeIntegration:
         state = make_execution_state(
             profile=profile,
             goal="Test config wiring",
-            last_review=review_result,
+            last_reviews=[review_result],
         )
         config = make_config(thread_id="test-eval-config", profile=profile)
 

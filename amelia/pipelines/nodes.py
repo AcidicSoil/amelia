@@ -17,6 +17,7 @@ from amelia.agents.reviewer import Reviewer
 from amelia.pipelines.implementation.state import ImplementationState
 from amelia.pipelines.utils import extract_config_params
 from amelia.server.models.tokens import TokenUsage
+from amelia.skills.review import detect_stack, load_skills
 from amelia.tools.git_utils import get_current_commit
 
 
@@ -43,6 +44,72 @@ async def _resolve_commit(
         except Exception:
             logger.warning("Failed to resolve commit from sandbox, falling back to host")
     return await get_current_commit(cwd=profile_repo_root)
+
+
+async def _get_changed_files(
+    base_commit: str,
+    repo_root: str,
+    sandbox_provider: "SandboxProvider | None" = None,
+) -> list[str]:
+    """Get list of changed file paths since base_commit.
+
+    Uses sandbox when available, falls back to local subprocess.
+    """
+    cmd = ["git", "diff", "--name-only", base_commit, "HEAD"]
+
+    if sandbox_provider is not None:
+        try:
+            lines: list[str] = []
+            async for line in sandbox_provider.exec_stream(cmd):
+                stripped = line.strip()
+                if stripped:
+                    lines.append(stripped)
+            return lines
+        except Exception:
+            logger.warning("Failed to get changed files from sandbox, falling back to host")
+
+    import asyncio  # noqa: PLC0415
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        cwd=repo_root,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    return [line for line in stdout.decode().splitlines() if line.strip()]
+
+
+async def _get_diff_content(
+    base_commit: str,
+    repo_root: str,
+    sandbox_provider: "SandboxProvider | None" = None,
+) -> str:
+    """Get unified diff content since base_commit for import scanning.
+
+    Uses sandbox when available, falls back to local subprocess.
+    """
+    cmd = ["git", "diff", base_commit, "HEAD"]
+
+    if sandbox_provider is not None:
+        try:
+            lines: list[str] = []
+            async for line in sandbox_provider.exec_stream(cmd):
+                lines.append(line)
+            return "".join(lines)
+        except Exception:
+            logger.warning("Failed to get diff content from sandbox, falling back to host")
+
+    import asyncio  # noqa: PLC0415
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        cwd=repo_root,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    return stdout.decode()
 
 
 async def _save_token_usage(
@@ -225,8 +292,6 @@ async def call_reviewer_node(
         agent_config = profile.get_agent_config(agent_name)
     except ValueError:
         agent_config = profile.get_agent_config("reviewer")
-    reviewer = Reviewer(agent_config, event_bus=event_bus, prompts=prompts, agent_name=agent_name, sandbox_provider=sandbox_provider)
-
     # Compute base_commit if not in state
     base_commit = state.base_commit
     if not base_commit:
@@ -252,6 +317,30 @@ async def call_reviewer_node(
             base_commit=base_commit,
         )
 
+    # Detect stack and load review skills
+    review_types = agent_config.options.get("review_types", ["general"])
+    changed_files = await _get_changed_files(base_commit, profile.repo_root, sandbox_provider)
+    diff_content = await _get_diff_content(base_commit, profile.repo_root, sandbox_provider)
+    tags = detect_stack(changed_files, diff_content)
+    review_guidelines = load_skills(tags, review_types)
+
+    logger.info(
+        "Loaded review skills",
+        agent=agent_name,
+        tags=sorted(tags),
+        review_types=review_types,
+        guidelines_length=len(review_guidelines),
+    )
+
+    reviewer = Reviewer(
+        agent_config,
+        event_bus=event_bus,
+        prompts=prompts,
+        agent_name=agent_name,
+        sandbox_provider=sandbox_provider,
+        review_guidelines=review_guidelines,
+    )
+
     # Always use agentic review - it fetches the diff via git tools
     review_result, new_session_id = await reviewer.agentic_review(
         state, base_commit, profile, workflow_id=workflow_id
@@ -270,9 +359,9 @@ async def call_reviewer_node(
         review_iteration=next_iteration,
     )
 
-    # Build return dict
+    # Build return dict — wrap single review in a list for last_reviews
     result_dict = {
-        "last_review": review_result,
+        "last_reviews": [review_result],
         "driver_session_id": new_session_id,
         "review_iteration": next_iteration,
     }

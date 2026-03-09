@@ -197,7 +197,7 @@ class TestEvaluator:
         )
         state, profile = mock_execution_state_factory(
             goal="Fix bugs",
-            last_review=review_result,
+            last_reviews=[review_result],
             code_changes_for_review="diff content",
         )
 
@@ -240,7 +240,7 @@ class TestEvaluator:
         )
         state, profile = mock_execution_state_factory(
             goal="Fix bugs",
-            last_review=review_result,
+            last_reviews=[review_result],
         )
 
         config = AgentConfig(driver="claude", model="sonnet")
@@ -311,7 +311,7 @@ class TestEvaluator:
         )
         state, profile = mock_execution_state_factory(
             goal="Fix bugs",
-            last_review=review_result,
+            last_reviews=[review_result],
         )
 
         mock_driver.generate = AsyncMock(return_value=(evaluation_output, None))
@@ -332,21 +332,22 @@ class TestEvaluator:
         assert 1 in implement_numbers
         assert 2 in implement_numbers
 
-    async def test_evaluate_requires_last_review(
+    async def test_evaluate_requires_last_reviews(
         self,
         mock_driver: MagicMock,
         mock_execution_state_factory: Callable[..., tuple[ImplementationState, Profile]],
     ) -> None:
-        """Test that evaluation raises error when no last_review in state."""
+        """Test that evaluation raises error when no last_reviews in state."""
         state, profile = mock_execution_state_factory(
             goal="Fix bugs",
-            last_review=None,
         )
+        # Ensure last_reviews is empty
+        state = state.model_copy(update={"last_reviews": []})
 
         config = AgentConfig(driver="claude", model="sonnet")
         with patch("amelia.agents.evaluator.get_driver", return_value=mock_driver):
             evaluator = Evaluator(config)
-        with pytest.raises(ValueError, match="must have last_review"):
+        with pytest.raises(ValueError, match="must have last_reviews"):
             await evaluator.evaluate(state, profile, workflow_id=uuid4())
 
     async def test_evaluate_with_event_bus(
@@ -365,7 +366,7 @@ class TestEvaluator:
         )
         state, profile = mock_execution_state_factory(
             goal="Fix bugs",
-            last_review=review_result,
+            last_reviews=[review_result],
         )
 
         evaluation_output = EvaluationOutput(
@@ -410,7 +411,7 @@ class TestEvaluator:
         )
         state, profile = mock_execution_state_factory(
             goal="Implement feature X",
-            last_review=review_result,
+            last_reviews=[review_result],
             code_changes_for_review="diff content",
         )
 
@@ -444,7 +445,7 @@ class TestEvaluator:
         )
         state, profile = mock_execution_state_factory(
             goal=None,  # No goal
-            last_review=review_result,
+            last_reviews=[review_result],
         )
 
         evaluation_output = EvaluationOutput(

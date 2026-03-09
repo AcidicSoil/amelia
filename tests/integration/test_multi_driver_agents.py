@@ -211,8 +211,8 @@ class TestReviewerMultiDriver:
         with patch(patch_target, mock_execute_agentic):
             result = await call_reviewer_node(state, cast(RunnableConfig, config))
 
-        assert result["last_review"] is not None
-        assert result["last_review"].approved is True
+        assert result["last_reviews"] is not None
+        assert result["last_reviews"][0].approved is True
 
     @pytest.mark.parametrize("driver_key,model", DRIVER_CONFIGS)
     async def test_reviewer_rejection_from_any_driver(
@@ -255,6 +255,6 @@ class TestReviewerMultiDriver:
         with patch(patch_target, mock_execute_agentic):
             result = await call_reviewer_node(state, cast(RunnableConfig, config))
 
-        assert result["last_review"] is not None
-        assert result["last_review"].approved is False
-        assert result["last_review"].severity == "critical"
+        assert result["last_reviews"] is not None
+        assert result["last_reviews"][0].approved is False
+        assert result["last_reviews"][0].severity == "critical"

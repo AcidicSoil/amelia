@@ -101,7 +101,7 @@ class TestCallReviewNodeBaseCommitFallback:
             assert captured_base_commit[0] == "abc123def456"
 
             # Verify result contains review
-            assert result["last_review"] == mock_review_result
+            assert result["last_reviews"] == [mock_review_result]
 
     @pytest.mark.asyncio
     async def test_uses_existing_base_commit_when_present(
@@ -167,7 +167,7 @@ class TestCallReviewNodeBaseCommitFallback:
             assert captured_base_commit[0] == existing_base_commit
 
             # Verify result contains review
-            assert result["last_review"] == mock_review_result
+            assert result["last_reviews"] == [mock_review_result]
 
     @pytest.mark.asyncio
     async def test_falls_back_to_head_when_get_current_commit_fails(

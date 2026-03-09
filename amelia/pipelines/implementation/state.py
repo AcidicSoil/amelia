@@ -69,13 +69,13 @@ class ImplementationState(BasePipelineState):
     human_feedback: str | None = None
 
     # Code review tracking
-    last_review: ReviewResult | None = None
+    last_reviews: list[ReviewResult] = Field(default_factory=list)
     code_changes_for_review: str | None = None
 
     # Review iteration tracking
     review_iteration: int = 0
 
-    # Plan validation feedback loop (mirrors last_review + task_review_iteration)
+    # Plan validation feedback loop (mirrors last_reviews + task_review_iteration)
     plan_validation_result: PlanValidationResult | None = None
     plan_revision_count: int = 0
 

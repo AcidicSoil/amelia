@@ -194,7 +194,7 @@ class TestRouteAfterTaskReview:
             profile_id="test",
             total_tasks=2,
             current_task_index=1,  # On task 2 (0-indexed)
-            last_review=approved_review,
+            last_reviews=[approved_review],
         )
 
         result = route_after_task_review(state, mock_profile_task_review)
@@ -211,7 +211,7 @@ class TestRouteAfterTaskReview:
             profile_id="test",
             total_tasks=3,
             current_task_index=0,  # On task 1, more tasks remain
-            last_review=approved_review,
+            last_reviews=[approved_review],
         )
 
         result = route_after_task_review(state, mock_profile_task_review)
@@ -229,7 +229,7 @@ class TestRouteAfterTaskReview:
             total_tasks=2,
             current_task_index=0,
             task_review_iteration=1,  # Under limit of 3
-            last_review=rejected_review,
+            last_reviews=[rejected_review],
         )
 
         result = route_after_task_review(state, mock_profile_task_review)
@@ -247,7 +247,7 @@ class TestRouteAfterTaskReview:
             total_tasks=2,
             current_task_index=0,
             task_review_iteration=3,  # At limit
-            last_review=rejected_review,
+            last_reviews=[rejected_review],
         )
 
         result = route_after_task_review(state, mock_profile_task_review)
@@ -265,7 +265,7 @@ class TestRouteAfterTaskReview:
             total_tasks=2,
             current_task_index=1,  # Final task (0-indexed)
             task_review_iteration=3,  # At limit
-            last_review=rejected_review,
+            last_reviews=[rejected_review],
         )
 
         result = route_after_task_review(state, mock_profile_task_review)
@@ -300,7 +300,7 @@ class TestRouteAfterTaskReview:
             total_tasks=2,
             current_task_index=0,
             task_review_iteration=5,  # Under custom limit of 10
-            last_review=rejected_review,
+            last_reviews=[rejected_review],
         )
 
         result = route_after_task_review(state, profile)

@@ -177,7 +177,7 @@ class TestReviewerPromptParserChain:
             status="running",
             current_task_index=0,
             total_tasks=3,
-            last_review=result,
+            last_reviews=[result],
         )
         route = route_after_task_review(state_after, profile)
         # Approved non-final task -> advance to next task

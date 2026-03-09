@@ -380,7 +380,7 @@ State for the implementation pipeline. Extends `BasePipelineState` with implemen
 | `key_files` | `list[str]` | `[]` | Key files identified during planning. |
 | `human_approved` | `bool \| None` | `None` | Whether human approval was granted for the plan. |
 | `human_feedback` | `str \| None` | `None` | Optional feedback from human during approval. |
-| `last_review` | `ReviewResult \| None` | `None` | Most recent review result. |
+| `last_reviews` | `list[ReviewResult]` | `[]` | Most recent review results (one per review type). |
 | `code_changes_for_review` | `str \| None` | `None` | Staged code changes for review. |
 | `review_iteration` | `int` | `0` | Current iteration in review-fix loop. |
 | `plan_validation_result` | `PlanValidationResult \| None` | `None` | Result from plan structure validation. |
@@ -631,7 +631,7 @@ ImplementationState (extends BasePipelineState)
 ├── plan_revision_count: int
 ├── tool_calls: List[ToolCall] (with reducer)
 ├── tool_results: List[ToolResult] (with reducer)
-├── last_review: ReviewResult
+├── last_reviews: List[ReviewResult]
 ├── evaluation_result: EvaluationResult (optional)
 │   ├── items_to_implement: List[EvaluatedItem]
 │   ├── items_rejected: List[EvaluatedItem]

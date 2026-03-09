@@ -222,7 +222,7 @@ class TestOrchestratorPromptInjection:
         prompts = {"evaluator.system": custom_system_prompt}
 
         profile = make_profile(repo_root=str(tmp_path))
-        # Evaluator requires last_review with comments
+        # Evaluator requires last_reviews with comments
         review_result = ReviewResult(
             reviewer_persona="General",
             approved=False,
@@ -233,7 +233,7 @@ class TestOrchestratorPromptInjection:
             profile=profile,
             goal="Test goal",
             code_changes_for_review="diff content",
-            last_review=review_result,
+            last_reviews=[review_result],
         )
         config = make_config(thread_id="test-wf-5", profile=profile, prompts=prompts)
 
@@ -276,7 +276,7 @@ class TestOrchestratorPromptInjection:
         state = make_execution_state(
             profile=profile,
             goal="Test goal",
-            last_review=review_result,
+            last_reviews=[review_result],
         )
         # No prompts in config
         config = make_config(thread_id="test-wf-6", profile=profile)
