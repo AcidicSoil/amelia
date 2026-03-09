@@ -21,6 +21,7 @@ import type {
   FileReadResponse,
   PathValidationResponse,
   UsageResponse,
+  GitHubIssuesResponse,
 } from '../types';
 import type {
   KnowledgeDocument,
@@ -374,7 +375,7 @@ export const api = {
   },
 
   /**
-   * Creates a new workflow via Quick Shot.
+   * Creates a new workflow.
    *
    * @param request - The workflow creation request.
    * @returns The created workflow response.
@@ -525,37 +526,26 @@ export const api = {
   },
 
   /**
-   * Retrieves the most recent workflow defaults for Quick Shot pre-population.
+   * Fetches open GitHub issues for a profile's repository.
    *
-   * Fetches the most recent workflow (by started_at) and returns its
-   * worktree_path and profile for use as form defaults.
-   *
-   * @returns Object with worktree_path and profile, or null values if no workflows exist.
-   * @throws {ApiError} When the API request fails.
-   *
-   * @example
-   * ```typescript
-   * const defaults = await api.getWorkflowDefaults();
-   * console.log(`Default path: ${defaults.worktree_path}`);
-   * ```
+   * @param profile - Profile name to resolve repo context.
+   * @param search - Optional search query for filtering.
+   * @param signal - Optional AbortSignal for cancellation.
+   * @returns List of GitHub issue summaries.
    */
-  async getWorkflowDefaults(): Promise<{
-    worktree_path: string | null;
-    profile: string | null;
-  }> {
-    // Fetch most recent workflow (limit=1, sorted by started_at desc)
-    const response = await fetchWithTimeout(`${API_BASE_URL}/workflows?limit=1`);
-    const data = await handleResponse<WorkflowListResponse>(response);
-
-    const mostRecent = data.workflows[0];
-    if (mostRecent) {
-      return {
-        worktree_path: mostRecent.worktree_path,
-        profile: mostRecent.profile,
-      };
-    }
-
-    return { worktree_path: null, profile: null };
+  async getGitHubIssues(
+    profile: string,
+    search?: string,
+    signal?: AbortSignal,
+  ): Promise<GitHubIssuesResponse> {
+    const params = new URLSearchParams({ profile });
+    if (search) params.set('search', search);
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/github/issues?${params}`,
+      {},
+      signal,
+    );
+    return handleResponse<GitHubIssuesResponse>(response);
   },
 
   // ==========================================================================
