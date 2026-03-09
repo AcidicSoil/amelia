@@ -3051,3 +3051,39 @@ class OrchestratorService:
             workflow_id=workflow_id,
             issue_id=workflow.issue_id,
         )
+
+    async def request_review(
+        self,
+        workflow_id: uuid.UUID,
+        mode: str = "review_only",
+        review_types: list[str] | None = None,
+        base_commit: str | None = None,
+    ) -> None:
+        """Request an on-demand code review for a workflow.
+
+        Args:
+            workflow_id: The workflow to review.
+            mode: Review mode - 'review_only' for read-only review,
+                  'review_fix' for review with automatic fixes.
+            review_types: List of review types to run (e.g. ['general', 'security']).
+                Defaults to ['general'].
+            base_commit: Optional base commit for the diff. If None, uses
+                the workflow's stored base commit.
+
+        Raises:
+            WorkflowNotFoundError: If workflow doesn't exist.
+        """
+        if review_types is None:
+            review_types = ["general"]
+
+        workflow = await self._repository.get(workflow_id)
+        if workflow is None:
+            raise WorkflowNotFoundError(workflow_id)
+
+        logger.info(
+            "On-demand review requested",
+            workflow_id=workflow_id,
+            mode=mode,
+            review_types=review_types,
+            base_commit=base_commit,
+        )

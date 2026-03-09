@@ -1010,3 +1010,20 @@ export interface GitHubIssueSummary {
 export interface GitHubIssuesResponse {
   issues: GitHubIssueSummary[];
 }
+
+// ============================================================================
+// Review Request Types
+// ============================================================================
+
+/**
+ * Request payload for requesting an on-demand code review.
+ * Used by POST /api/workflows/:id/review endpoint.
+ */
+export interface RequestReviewRequest {
+  /** Review mode: review only or review and fix. */
+  mode: 'review_only' | 'review_fix';
+  /** Review types to run (e.g., 'general', 'security'). Defaults to ['general'] on the backend. */
+  review_types: string[];
+  /** Optional base commit SHA for the diff. */
+  base_commit?: string;
+}

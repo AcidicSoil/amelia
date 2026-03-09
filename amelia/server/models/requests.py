@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -312,6 +312,14 @@ class BatchStartRequest(BaseModel):
 
     worktree_path: str | None = None
     """Filter by worktree path."""
+
+
+class RequestReviewRequest(BaseModel):
+    """Request for on-demand code review."""
+
+    mode: Literal["review_only", "review_fix"] = "review_only"
+    review_types: list[str] = Field(default_factory=lambda: ["general"])
+    base_commit: str | None = None
 
 
 class SetPlanRequest(BaseModel):

@@ -27,6 +27,7 @@ from amelia.server.models.requests import (
     CreateReviewWorkflowRequest,
     CreateWorkflowRequest,
     RejectRequest,
+    RequestReviewRequest,
     SetPlanRequest,
 )
 from amelia.server.models.responses import (
@@ -563,6 +564,36 @@ async def replan_workflow(
     await orchestrator.replan_workflow(workflow_id)
     logger.info("Replan started", workflow_id=workflow_id)
     return ActionResponse(status="replanning", workflow_id=workflow_id)
+
+
+@router.post(
+    "/{workflow_id}/review",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ActionResponse,
+)
+async def request_review(
+    workflow_id: uuid.UUID,
+    request: RequestReviewRequest,
+    orchestrator: OrchestratorService = Depends(get_orchestrator),
+) -> ActionResponse:
+    """Request an on-demand code review for a workflow.
+
+    Args:
+        workflow_id: Unique workflow identifier.
+        request: Review request with mode and optional review types.
+        orchestrator: Orchestrator service dependency.
+
+    Returns:
+        202 Accepted with workflow_id and status.
+    """
+    await orchestrator.request_review(
+        workflow_id=workflow_id,
+        mode=request.mode,
+        review_types=request.review_types,
+        base_commit=request.base_commit,
+    )
+    logger.info("Review requested", workflow_id=workflow_id, mode=request.mode)
+    return ActionResponse(status="review_requested", workflow_id=workflow_id)
 
 
 def configure_exception_handlers(app: FastAPI) -> None:

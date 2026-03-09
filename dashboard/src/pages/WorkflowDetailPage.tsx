@@ -6,6 +6,7 @@ import { useLoaderData } from 'react-router-dom';
 import { RotateCcw } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { StatusBadge } from '@/components/StatusBadge';
+import { RequestReviewDialog } from '@/components/RequestReviewDialog';
 import { ActivityLog } from '@/components/ActivityLog';
 import { ApprovalControls } from '@/components/ApprovalControls';
 import { UsageCard } from '@/components/UsageCard';
@@ -111,6 +112,7 @@ export default function WorkflowDetailPage() {
         </PageHeader.Center>
 
         <PageHeader.Right>
+          <RequestReviewDialog workflowId={workflow.id} />
           <StatusBadge status={workflow.status} />
         </PageHeader.Right>
       </PageHeader>

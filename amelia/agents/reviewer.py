@@ -70,9 +70,9 @@ class Reviewer:
     """Agent responsible for reviewing code changes against requirements.
 
     Review Method:
-        agentic_review(): Agentic review that auto-detects technologies, loads review
-            skills, and fetches diff via git. Returns ReviewResult with properly
-            separated issues (not including observations or praise).
+        agentic_review(): Agentic review using injected review guidelines.
+            Fetches diff via git and reviews against provided skill content.
+            Returns ReviewResult with properly separated issues.
 
     Attributes:
         driver: LLM driver interface for generating reviews.
@@ -387,7 +387,7 @@ The changes are in git - diff against commit: {base_commit}"""
     def _parse_review_result(self, output: str | None, workflow_id: uuid.UUID) -> ReviewResult:
         """Parse the agent's output to extract ReviewResult.
 
-        Parses the beagle review markdown format with sections:
+        Parses the review markdown format with sections:
         - Review Summary
         - Issues (Critical/Major/Minor)
         - Good Patterns

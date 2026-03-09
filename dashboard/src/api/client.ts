@@ -22,6 +22,7 @@ import type {
   PathValidationResponse,
   UsageResponse,
   GitHubIssuesResponse,
+  RequestReviewRequest,
 } from '../types';
 import type {
   KnowledgeDocument,
@@ -943,6 +944,33 @@ export const api = {
       signal
     );
     return handleResponse<SearchResult[]>(response);
+  },
+
+  // ==========================================================================
+  // Review API
+  // ==========================================================================
+
+  /**
+   * Requests an on-demand code review for a workflow.
+   *
+   * @param workflowId - The unique identifier of the workflow.
+   * @param request - Review request with mode and review types.
+   * @returns Promise that resolves when the review is queued.
+   * @throws {ApiError} When the workflow is not found or the API request fails.
+   */
+  async requestReview(
+    workflowId: string,
+    request: RequestReviewRequest
+  ): Promise<void> {
+    const response = await fetchWithTimeout(
+      `${API_BASE_URL}/workflows/${workflowId}/review`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+      }
+    );
+    await handleResponse<void>(response);
   },
 };
 
