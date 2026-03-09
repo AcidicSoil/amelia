@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| Bounded contexts, Ecto integration | — |
-| Actions, params, error handling | — |
-| Pipelines, scopes, verified routes | — |
-| Custom plugs, authentication | — |
+| Bounded contexts, Ecto integration | references/contexts.md |
+| Actions, params, error handling | references/controllers.md |
+| Pipelines, scopes, verified routes | references/routing.md |
+| Custom plugs, authentication | references/plugs.md |
 
 ## Review Checklist
 
@@ -45,7 +45,7 @@
 - **Inline Ecto query in context** - Context owns its data access
 - **Using `action_fallback`** - Centralized error handling pattern
 - **Multiple pipelines per route** - Composition is intentional
-- **`Plug.Conn.halt/1` without send** - Valid when `action_fallback` handles the response
+- **`Plug.Conn.halt/1` without send** - May be handled by fallback
 
 ## Context-Sensitive Rules
 
@@ -57,4 +57,4 @@
 
 ## Before Submitting Findings
 
-Follow the verification protocol guidelines provided separately before reporting any issue.
+Refer to the verification protocol guidelines provided separately.

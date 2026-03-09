@@ -86,9 +86,9 @@ expect(mockFn).toHaveBeenCalledTimes(2)
 
 ## Additional Documentation
 
-- **Mocking**: See guidelines for module mocking, spying, cleanup
-- **Configuration**: See guidelines for vitest.config, setup files, coverage
-- **Patterns**: See guidelines for timers, snapshots, anti-patterns
+- **Mocking**: See references/mocking.md for module mocking, spying, cleanup
+- **Configuration**: See references/config.md for vitest.config, setup files, coverage
+- **Patterns**: See references/patterns.md for timers, snapshots, anti-patterns
 
 ## Test Methods Quick Reference
 

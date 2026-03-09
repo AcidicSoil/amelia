@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| Async tests, setup, describe, tags | — |
-| Behavior-based mocking, expectations | — |
-| Bypass, Swoosh, Oban testing | — |
-| What to mock vs real, Ecto sandbox | — |
+| Async tests, setup, describe, tags | references/exunit-patterns.md |
+| Behavior-based mocking, expectations | references/mox-boundaries.md |
+| Bypass, Swoosh, Oban testing | references/test-adapters.md |
+| What to mock vs real, Ecto sandbox | references/integration-tests.md |
 
 ## Mock Boundary Philosophy
 
@@ -64,4 +64,4 @@
 
 Use the issue format: `[FILE:LINE] ISSUE_TITLE` for each finding.
 
-Follow the verification protocol guidelines provided separately before reporting any issue.
+Refer to the verification protocol guidelines provided separately.

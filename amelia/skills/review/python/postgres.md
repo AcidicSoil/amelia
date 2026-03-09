@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| Missing indexes, wrong index type, query performance | — |
-| JSONB queries, operators, GIN indexes | — |
-| Connection leaks, pool configuration, timeouts | — |
-| Isolation levels, deadlocks, advisory locks | — |
+| Missing indexes, wrong index type, query performance | references/indexes.md |
+| JSONB queries, operators, GIN indexes | references/jsonb.md |
+| Connection leaks, pool configuration, timeouts | references/connections.md |
+| Isolation levels, deadlocks, advisory locks | references/transactions.md |
 
 ## Review Checklist
 

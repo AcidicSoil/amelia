@@ -4,8 +4,8 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| Test structure, naming | — |
-| Mocking, interfaces | — |
+| Test structure, naming | references/structure.md |
+| Mocking, interfaces | references/mocking.md |
 
 ## Review Checklist
 

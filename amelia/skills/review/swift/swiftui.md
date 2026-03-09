@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| View extraction, modifiers, body complexity | — |
-| @State, @Binding, @Observable, @Bindable | — |
-| LazyStacks, AnyView, ForEach, identity | — |
-| VoiceOver, Dynamic Type, labels, traits | — |
+| View extraction, modifiers, body complexity | references/view-composition.md |
+| @State, @Binding, @Observable, @Bindable | references/state-management.md |
+| LazyStacks, AnyView, ForEach, identity | references/performance.md |
+| VoiceOver, Dynamic Type, labels, traits | references/accessibility.md |
 
 ## Review Checklist
 
@@ -22,6 +22,13 @@
 - [ ] Custom controls have accessibilityAddTraits(.isButton)
 - [ ] Dynamic Type supported (no fixed font sizes)
 - [ ] .task modifier for async work (not onAppear + Task)
+
+## When to Load References
+
+- Complex view bodies or modifier chains -> view-composition.md
+- Property wrapper usage (@State, @Observable) -> state-management.md
+- List performance or view identity issues -> performance.md
+- VoiceOver or accessibility implementation -> accessibility.md
 
 ## Review Questions
 

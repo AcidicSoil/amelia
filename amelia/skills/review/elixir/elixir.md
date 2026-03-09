@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| Naming, formatting, module structure | — |
-| With clauses, guards, destructuring | — |
-| GenServer, Supervisor, Application | — |
-| @moduledoc, @doc, @spec, doctests | — |
+| Naming, formatting, module structure | references/code-style.md |
+| With clauses, guards, destructuring | references/pattern-matching.md |
+| GenServer, Supervisor, Application | references/otp-basics.md |
+| @moduledoc, @doc, @spec, doctests | references/documentation.md |
 
 ## Review Checklist
 
@@ -65,4 +65,4 @@
 
 ## Before Submitting Findings
 
-Follow the verification protocol guidelines provided separately before reporting any issue.
+Refer to the verification protocol guidelines provided separately.

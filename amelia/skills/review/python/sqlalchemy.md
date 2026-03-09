@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| Session lifecycle, context managers, async sessions | — |
-| relationship(), lazy loading, N+1, joinedload | — |
-| select() vs query(), ORM overhead, bulk ops | — |
-| Alembic patterns, reversible migrations, data migrations | — |
+| Session lifecycle, context managers, async sessions | references/sessions.md |
+| relationship(), lazy loading, N+1, joinedload | references/relationships.md |
+| select() vs query(), ORM overhead, bulk ops | references/queries.md |
+| Alembic patterns, reversible migrations, data migrations | references/migrations.md |
 
 ## Review Checklist
 
@@ -23,6 +23,13 @@
 - [ ] Migrations are reversible with `downgrade()`
 - [ ] Data migrations use `op.execute()` not ORM models
 - [ ] Migration dependencies properly ordered
+
+## When to Load References
+
+- Reviewing session creation/cleanup → sessions.md
+- Reviewing model relationships → relationships.md
+- Reviewing database queries → queries.md
+- Reviewing Alembic migration files → migrations.md
 
 ## Review Questions
 

@@ -4,9 +4,9 @@
 
 | Topic | Reference |
 |-------|-----------|
-| Worker Pools & errgroup | — |
-| Rate Limiting | — |
-| Race Detection & Fixes | — |
+| Worker Pools & errgroup | references/worker-pools.md |
+| Rate Limiting | references/rate-limiting.md |
+| Race Detection & Fixes | references/race-detection.md |
 
 ## Core Rules
 
@@ -25,8 +25,6 @@ Use worker pools for background tasks dispatched from HTTP handlers. This bounds
 type WorkerPool struct {
     jobs   chan Job
     wg     sync.WaitGroup
-    ctx    context.Context
-    cancel context.CancelFunc
     logger *slog.Logger
 }
 
@@ -35,51 +33,36 @@ type Job struct {
     Execute func(ctx context.Context) error
 }
 
-func NewWorkerPool(ctx context.Context, numWorkers int, queueSize int, logger *slog.Logger) *WorkerPool {
-    poolCtx, cancel := context.WithCancel(ctx)
+func NewWorkerPool(numWorkers int, queueSize int, logger *slog.Logger) *WorkerPool {
     wp := &WorkerPool{
         jobs:   make(chan Job, queueSize),
-        ctx:    poolCtx,
-        cancel: cancel,
         logger: logger,
     }
 
     for i := 0; i < numWorkers; i++ {
         wp.wg.Add(1)
-        go wp.worker(poolCtx, i)
+        go wp.worker(i)
     }
 
     return wp
 }
 
-func (wp *WorkerPool) worker(ctx context.Context, id int) {
+func (wp *WorkerPool) worker(id int) {
     defer wp.wg.Done()
-    for {
-        select {
-        case <-ctx.Done():
-            return
-        case job := <-wp.jobs:
-            wp.logger.Info("processing job", "worker", id, "job_id", job.ID)
-            if err := job.Execute(ctx); err != nil {
-                wp.logger.Error("job failed", "worker", id, "job_id", job.ID, "err", err)
-            }
+    for job := range wp.jobs {
+        wp.logger.Info("processing job", "worker", id, "job_id", job.ID)
+        if err := job.Execute(context.Background()); err != nil {
+            wp.logger.Error("job failed", "worker", id, "job_id", job.ID, "err", err)
         }
     }
 }
 
-func (wp *WorkerPool) Submit(ctx context.Context, job Job) error {
-    select {
-    case <-wp.ctx.Done():
-        return context.Canceled
-    case <-ctx.Done():
-        return ctx.Err()
-    case wp.jobs <- job:
-        return nil
-    }
+func (wp *WorkerPool) Submit(job Job) {
+    wp.jobs <- job
 }
 
 func (wp *WorkerPool) Shutdown() {
-    wp.cancel()
+    close(wp.jobs)
     wp.wg.Wait()
 }
 ```
@@ -95,7 +78,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
     }
 
     // Dispatch background task — never spawn raw goroutines in handlers
-    _ = s.workers.Submit(r.Context(), Job{
+    s.workers.Submit(Job{
         ID: "welcome-email-" + user.ID,
         Execute: func(ctx context.Context) error {
             return s.emailService.SendWelcome(ctx, user)
@@ -106,7 +89,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-See guidelines for sizing guidance, backpressure, error handling, retry patterns, and `errgroup` as a simpler alternative.
+See references/worker-pools.md for sizing guidance, backpressure, error handling, retry patterns, and `errgroup` as a simpler alternative.
 
 ## Rate Limiting
 
@@ -117,7 +100,7 @@ Key points:
 - Per-IP rate limiting prevents individual clients from monopolizing resources
 - Always return `429 Too Many Requests` with a `Retry-After` header
 
-See guidelines for middleware implementation, per-IP limiting, stale limiter cleanup, and API key-based limiting.
+See references/rate-limiting.md for middleware implementation, per-IP limiting, stale limiter cleanup, and API key-based limiting.
 
 ## Race Detection
 
@@ -130,7 +113,7 @@ go build -race -o myserver ./cmd/server
 
 The race detector catches concurrent reads and writes to shared memory. It does not catch logical races (e.g., TOCTOU bugs) or deadlocks.
 
-See guidelines for common web handler races, fixing strategies, and CI integration.
+See references/race-detection.md for common web handler races, fixing strategies, and CI integration.
 
 ## Handler Safety
 
@@ -194,7 +177,7 @@ func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
 // GOOD — use a worker pool
 func (s *Server) handleWebhook(w http.ResponseWriter, r *http.Request) {
     webhook := decodeWebhook(r)
-    _ = s.workers.Submit(r.Context(), Job{
+    s.workers.Submit(Job{
         ID:      "webhook-" + webhook.ID,
         Execute: func(ctx context.Context) error {
             return s.processWebhook(ctx, webhook)
@@ -238,25 +221,16 @@ func fetchWithTimeout(ctx context.Context, url string) (*Response, error) {
     }
 }
 
-// GOOD — use buffered channel so goroutine can exit, propagate errors
+// GOOD — use buffered channel so goroutine can exit
 func fetchWithTimeout(ctx context.Context, url string) (*Response, error) {
-    type result struct {
-        resp *Response
-        err  error
-    }
-    ch := make(chan result, 1) // buffered — goroutine can always send
+    ch := make(chan *Response, 1) // buffered — goroutine can always send
     go func() {
-        req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-        if err != nil {
-            ch <- result{err: err}
-            return
-        }
-        resp, err := http.DefaultClient.Do(req)
-        ch <- result{resp: resp, err: err}
+        resp, _ := http.Get(url)
+        ch <- resp
     }()
     select {
-    case res := <-ch:
-        return res.resp, res.err
+    case resp := <-ch:
+        return resp, nil
     case <-ctx.Done():
         return nil, ctx.Err()
     }

@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| Publishers, Subjects, AnyPublisher | — |
-| map, flatMap, combineLatest, switchToLatest | — |
-| AnyCancellable, retain cycles, [weak self] | — |
-| tryMap, catch, replaceError, Never | — |
+| Publishers, Subjects, AnyPublisher | references/publishers.md |
+| map, flatMap, combineLatest, switchToLatest | references/operators.md |
+| AnyCancellable, retain cycles, [weak self] | references/memory.md |
+| tryMap, catch, replaceError, Never | references/error-handling.md |
 
 ## Review Checklist
 

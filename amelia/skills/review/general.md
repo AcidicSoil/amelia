@@ -1,11 +1,11 @@
 # General Code Review Guidelines
 
 ## Review Priorities (in order)
-1. **Correctness** — Does the code do what it claims?
-2. **Security** — Are there vulnerabilities? (See security-specific review for deep analysis.)
-3. **Reliability** — Error handling, edge cases, resource cleanup
-4. **Maintainability** — Readability, naming, separation of concerns
-5. **Performance** — Only flag measurable issues, not premature optimization
+1. Correctness — Does the code do what it claims?
+2. Security — Are there vulnerabilities (injection, auth bypass, data exposure)?
+3. Reliability — Error handling, edge cases, resource cleanup
+4. Maintainability — Readability, naming, separation of concerns
+5. Performance — Only flag measurable issues, not premature optimization
 
 ## What NOT to Flag
 - Style preferences already enforced by linters (formatting, import order)
@@ -15,10 +15,7 @@
 
 ## Issue Format
 For each issue found, use this format:
-
-```
-[FILE:LINE] ISSUE_TITLE
-- Issue: What's wrong
-- Why: Why it matters (bug, security, reliability)
-- Fix: Specific recommended fix
-```
+1. [FILE:LINE] ISSUE_TITLE
+   - Issue: What's wrong
+   - Why: Why it matters (bug, security, reliability)
+   - Fix: Specific recommended fix

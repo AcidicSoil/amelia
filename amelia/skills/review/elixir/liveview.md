@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| mount, handle_params, handle_event, handle_async | — |
-| When to use assigns vs streams, AsyncResult | — |
-| Function vs LiveComponent, slots, attrs | — |
-| Authorization per event, phx-value trust | — |
+| mount, handle_params, handle_event, handle_async | references/lifecycle.md |
+| When to use assigns vs streams, AsyncResult | references/assigns-streams.md |
+| Function vs LiveComponent, slots, attrs | references/components.md |
+| Authorization per event, phx-value trust | references/security.md |
 
 ## Review Checklist
 
@@ -99,4 +99,4 @@ end
 
 Use the issue format: `[FILE:LINE] ISSUE_TITLE` for each finding.
 
-Follow the verification protocol guidelines provided separately before reporting any issue.
+Refer to the verification protocol guidelines provided separately.

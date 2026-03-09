@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| className in CVA, missing VariantProps, compound variants | — |
-| asChild without Slot, missing Context, component composition | — |
-| Missing focus-visible, aria-invalid, disabled states | — |
-| Missing data-slot, incorrect CSS targeting | — |
+| className in CVA, missing VariantProps, compound variants | references/cva-patterns.md |
+| asChild without Slot, missing Context, component composition | references/composition.md |
+| Missing focus-visible, aria-invalid, disabled states | references/accessibility.md |
+| Missing data-slot, incorrect CSS targeting | references/data-slot.md |
 
 ## Review Checklist
 
@@ -74,4 +74,4 @@ Do NOT flag:
 
 ## Before Submitting Findings
 
-Follow the verification protocol guidelines provided separately before reporting any issue.
+Refer to the verification protocol guidelines provided separately.

@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| Mailbox overflow, blocking calls | — |
-| When to use ETS, read/write concurrency | — |
-| Binary handling, large messages | — |
-| Task patterns, flow control | — |
+| Mailbox overflow, blocking calls | references/genserver-bottlenecks.md |
+| When to use ETS, read/write concurrency | references/ets-patterns.md |
+| Binary handling, large messages | references/memory.md |
+| Task patterns, flow control | references/concurrency.md |
 
 ## Review Checklist
 
@@ -49,4 +49,4 @@
 
 ## Before Submitting Findings
 
-Follow the verification protocol guidelines provided separately before reporting any issue.
+Refer to the verification protocol guidelines provided separately.

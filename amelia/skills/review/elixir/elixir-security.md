@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| Code.eval_string, binary_to_term | — |
-| String.to_atom dangers | — |
-| Config, environment variables | — |
-| ETS visibility, process dictionary | — |
+| Code.eval_string, binary_to_term | references/code-injection.md |
+| String.to_atom dangers | references/atom-exhaustion.md |
+| Config, environment variables | references/secrets.md |
+| ETS visibility, process dictionary | references/process-exposure.md |
 
 ## Review Checklist
 
@@ -47,4 +47,4 @@
 
 Use the issue format: `[FILE:LINE] ISSUE_TITLE` for each finding.
 
-Follow the verification protocol guidelines provided separately before reporting any issue.
+Refer to the verification protocol guidelines provided separately.

@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| useEffect for data, missing loaders, params | — |
-| Form vs useFetcher, action patterns | — |
-| Missing error boundaries, errorElement | — |
-| navigate() vs Link, pending states | — |
+| useEffect for data, missing loaders, params | references/data-loading.md |
+| Form vs useFetcher, action patterns | references/mutations.md |
+| Missing error boundaries, errorElement | references/error-handling.md |
+| navigate() vs Link, pending states | references/navigation.md |
 
 ## Review Checklist
 
@@ -26,7 +26,7 @@
 
 These patterns are correct React Router usage - do not report as issues:
 
-- **useEffect for client-only data** - In SSR/framework mode, loaders run server-side; localStorage, window dimensions, and browser APIs must use useEffect. In SPA mode (`createBrowserRouter`), loaders run client-side but useEffect is still appropriate for browser-only APIs
+- **useEffect for client-only data** - Loaders run server-side; localStorage, window dimensions, and browser APIs must use useEffect
 - **navigate() in event handlers** - Link is for declarative navigation; navigate() is correct for imperative navigation in callbacks/handlers
 - **Type annotation on loader data** - `useLoaderData<typeof loader>()` is a type annotation, not a type assertion
 - **Empty errorElement at route level** - Route may intentionally rely on parent error boundary
@@ -62,4 +62,4 @@ Only flag these issues when the specific context applies:
 
 ## Before Submitting Findings
 
-Follow the verification protocol guidelines provided separately before reporting any issue.
+Refer to the verification protocol guidelines provided separately.

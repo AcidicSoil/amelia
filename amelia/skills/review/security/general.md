@@ -1,6 +1,6 @@
 # Security Code Review
 
-Focus exclusively on security vulnerabilities and risks. For general code quality concerns, defer to the general review — this review targets exploitable issues only.
+Focus exclusively on security vulnerabilities and risks.
 
 ## Checklist
 - [ ] No SQL injection (parameterized queries only)

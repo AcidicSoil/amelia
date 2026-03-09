@@ -4,10 +4,10 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| APIRouter setup, response_model, status codes | — |
-| Depends(), yield deps, cleanup, shared deps | — |
-| Pydantic models, HTTPException, 422 handling | — |
-| Async handlers, blocking I/O, background tasks | — |
+| APIRouter setup, response_model, status codes | references/routes.md |
+| Depends(), yield deps, cleanup, shared deps | references/dependencies.md |
+| Pydantic models, HTTPException, 422 handling | references/validation.md |
+| Async handlers, blocking I/O, background tasks | references/async.md |
 
 ## Review Checklist
 
@@ -71,4 +71,4 @@ Before flagging "missing" functionality, verify FastAPI isn't handling it.
 
 ## Before Submitting Findings
 
-Follow the verification protocol guidelines provided separately before reporting any issue.
+Refer to the verification protocol guidelines provided separately.

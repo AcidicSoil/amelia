@@ -7,7 +7,7 @@ Follow this sequence to avoid false positives and catch version-specific issues:
 1. **Check `go.mod`** — Note the Go version. This determines which patterns apply (loop variable capture is only an issue pre-1.22, `slog` is available from 1.21, `errors.Join` from 1.20). Skip version-gated checks that don't apply.
 2. **Scan changed files** — Read full functions, not just diffs. Many Go bugs hide in what surrounds the change.
 3. **Check each category** — Work through the checklist below, loading references as needed.
-4. **Verify before reporting** — Load the verification protocol guidelines before submitting findings.
+4. **Verify before reporting** — Load the verification protocol before submitting findings.
 
 ## Output Format
 
@@ -23,10 +23,10 @@ Description of the issue and why it matters.
 
 | Issue Type | Reference |
 |------------|-----------|
-| Missing error checks, wrapping, errors.Join | — |
-| Race conditions, channel misuse, goroutine lifecycle | — |
-| Interface pollution, naming, generics | — |
-| Resource leaks, defer misuse, slog, naming | — |
+| Missing error checks, wrapping, errors.Join | references/error-handling.md |
+| Race conditions, channel misuse, goroutine lifecycle | references/concurrency.md |
+| Interface pollution, naming, generics | references/interfaces.md |
+| Resource leaks, defer misuse, slog, naming | references/common-mistakes.md |
 
 ## Review Checklist
 
@@ -130,4 +130,4 @@ Only flag these issues when the specific conditions apply:
 
 ## Before Submitting Findings
 
-Follow the verification protocol guidelines provided separately before reporting any issue.
+Refer to the verification protocol guidelines provided separately.

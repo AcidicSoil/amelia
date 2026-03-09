@@ -4,11 +4,11 @@
 
 | Issue Type | Reference |
 |------------|-----------|
-| Indentation, line length, whitespace, naming | — |
-| Missing/wrong type hints, Any usage | — |
-| Blocking calls in async, missing await | — |
-| Bare except, missing context, logging | — |
-| Mutable defaults, print statements | — |
+| Indentation, line length, whitespace, naming | references/pep8-style.md |
+| Missing/wrong type hints, Any usage | references/type-safety.md |
+| Blocking calls in async, missing await | references/async-patterns.md |
+| Bare except, missing context, logging | references/error-handling.md |
+| Mutable defaults, print statements | references/common-mistakes.md |
 
 ## Review Checklist
 
@@ -79,4 +79,4 @@ Only flag these issues when the specific conditions apply:
 
 ## Before Submitting Findings
 
-Follow the verification protocol guidelines provided separately before reporting any issue.
+Refer to the verification protocol guidelines provided separately.
