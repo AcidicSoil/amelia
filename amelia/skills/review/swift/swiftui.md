@@ -2,12 +2,7 @@
 
 ## Quick Reference
 
-| Issue Type | Reference |
-|------------|-----------|
-| View extraction, modifiers, body complexity | references/view-composition.md |
-| @State, @Binding, @Observable, @Bindable | references/state-management.md |
-| LazyStacks, AnyView, ForEach, identity | references/performance.md |
-| VoiceOver, Dynamic Type, labels, traits | references/accessibility.md |
+**Key Topics:** View extraction, modifiers, body complexity · @State, @Binding, @Observable, @Bindable · LazyStacks, AnyView, ForEach, identity · VoiceOver, Dynamic Type, labels, traits
 
 ## Review Checklist
 

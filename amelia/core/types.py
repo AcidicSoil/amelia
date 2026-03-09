@@ -243,6 +243,37 @@ class ReviewResult(BaseModel):
     severity: Severity
 
 
+def collect_rejected_comments(reviews: list[ReviewResult]) -> list[str]:
+    """Aggregate comments from all non-approved reviews.
+
+    Args:
+        reviews: List of review results to aggregate.
+
+    Returns:
+        Flat list of comment strings from rejected reviews.
+    """
+    comments: list[str] = []
+    for review in reviews:
+        if not review.approved:
+            comments.extend(review.comments)
+    return comments
+
+
+def collect_all_comments(reviews: list[ReviewResult]) -> list[str]:
+    """Aggregate comments from all reviews regardless of approval status.
+
+    Args:
+        reviews: List of review results to aggregate.
+
+    Returns:
+        Flat list of all comment strings.
+    """
+    comments: list[str] = []
+    for review in reviews:
+        comments.extend(review.comments)
+    return comments
+
+
 class PlanValidationResult(BaseModel):
     """Result from plan structure validation.
 

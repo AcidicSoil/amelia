@@ -2,12 +2,7 @@
 
 ## Quick Reference
 
-| Issue Type | Reference |
-|------------|-----------|
-| async/await, actors, Sendable, Task | references/concurrency.md |
-| @Observable, @ObservationIgnored, @Bindable | references/observable.md |
-| throws, Result, try?, typed throws | references/error-handling.md |
-| Force unwraps, retain cycles, naming | references/common-mistakes.md |
+**Key Topics:** async/await, actors, Sendable, Task · @Observable, @ObservationIgnored, @Bindable · throws, Result, try?, typed throws · Force unwraps, retain cycles, naming
 
 ## Review Checklist
 

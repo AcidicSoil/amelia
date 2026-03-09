@@ -2,12 +2,7 @@
 
 ## Quick Reference
 
-| Issue Type | Reference |
-|------------|-----------|
-| useEffect for data, missing loaders, params | references/data-loading.md |
-| Form vs useFetcher, action patterns | references/mutations.md |
-| Missing error boundaries, errorElement | references/error-handling.md |
-| navigate() vs Link, pending states | references/navigation.md |
+**Key Topics:** useEffect for data, missing loaders, params · Form vs useFetcher, action patterns · Missing error boundaries, errorElement · navigate() vs Link, pending states
 
 ## Review Checklist
 

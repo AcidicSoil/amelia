@@ -2,12 +2,7 @@
 
 ## Quick Reference
 
-| Issue Type | Reference |
-|------------|-----------|
-| async def test_*, AsyncMock, await patterns | references/async-testing.md |
-| conftest.py, factory fixtures, scope, cleanup | references/fixtures.md |
-| @pytest.mark.parametrize, DRY patterns | references/parametrize.md |
-| AsyncMock tracking, patch patterns, when to mock | references/mocking.md |
+**Key Topics:** async def test_*, AsyncMock, await patterns · conftest.py, factory fixtures, scope, cleanup · @pytest.mark.parametrize, DRY patterns · AsyncMock tracking, patch patterns, when to mock
 
 ## Review Checklist
 

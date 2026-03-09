@@ -21,12 +21,7 @@ Description of the issue and why it matters.
 
 ## Quick Reference
 
-| Issue Type | Reference |
-|------------|-----------|
-| Missing error checks, wrapping, errors.Join | references/error-handling.md |
-| Race conditions, channel misuse, goroutine lifecycle | references/concurrency.md |
-| Interface pollution, naming, generics | references/interfaces.md |
-| Resource leaks, defer misuse, slog, naming | references/common-mistakes.md |
+**Key Topics:** Missing error checks, wrapping, errors.Join · Race conditions, channel misuse, goroutine lifecycle · Interface pollution, naming, generics · Resource leaks, defer misuse, slog, naming
 
 ## Review Checklist
 

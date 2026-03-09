@@ -84,11 +84,11 @@ expect(mockFn).toHaveBeenCalledWith('arg1', 'arg2')
 expect(mockFn).toHaveBeenCalledTimes(2)
 ```
 
-## Additional Documentation
+## Additional Topics
 
-- **Mocking**: See references/mocking.md for module mocking, spying, cleanup
-- **Configuration**: See references/config.md for vitest.config, setup files, coverage
-- **Patterns**: See references/patterns.md for timers, snapshots, anti-patterns
+- **Mocking**: module mocking, spying, cleanup
+- **Configuration**: vitest.config, setup files, coverage
+- **Patterns**: timers, snapshots, anti-patterns
 
 ## Test Methods Quick Reference
 

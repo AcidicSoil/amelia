@@ -2,11 +2,7 @@
 
 ## Quick Reference
 
-| Topic | Reference |
-|-------|-----------|
-| Context keys, request IDs, user metadata | references/context-propagation.md |
-| slog setup, logging middleware, child loggers | references/structured-logging.md |
-| AppHandler pattern, domain errors, recovery | references/error-handling-middleware.md |
+**Key Topics:** Context keys, request IDs, user metadata · slog setup, logging middleware, child loggers · AppHandler pattern, domain errors, recovery
 
 ## Middleware Signature
 
@@ -64,7 +60,7 @@ func RequestIDFromContext(ctx context.Context) string {
 }
 ```
 
-See references/context-propagation.md for user metadata patterns, downstream propagation, and timeouts.
+Consider user metadata patterns, downstream propagation, and context timeouts.
 
 ## Structured Logging
 
@@ -91,7 +87,7 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 }
 ```
 
-See references/structured-logging.md for JSON/text handler setup, log levels, and child loggers.
+Consider JSON/text handler setup, log levels, and child loggers.
 
 ## Centralized Error Handling
 
@@ -109,7 +105,7 @@ func (fn AppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 Map domain errors to HTTP status codes in a single `handleError` function. Never leak internal error details to clients.
 
-See references/error-handling-middleware.md for the full pattern with `AppError`, `errors.As`, and JSON responses.
+Use the `AppError` pattern with `errors.As` to map domain errors to structured JSON responses.
 
 ## Recovery Middleware
 
@@ -133,7 +129,7 @@ func Recovery(next http.Handler) http.Handler {
 }
 ```
 
-Recovery must be the **outermost** middleware so it catches panics from all inner middleware and handlers. See references/error-handling-middleware.md for details.
+Recovery must be the **outermost** middleware so it catches panics from all inner middleware and handlers.
 
 ## Middleware Chain Ordering
 

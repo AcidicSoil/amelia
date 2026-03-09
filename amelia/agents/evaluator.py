@@ -19,7 +19,7 @@ from amelia.agents.schemas.evaluator import (
     EvaluationOutput,
     EvaluationResult,
 )
-from amelia.core.types import AgentConfig, Profile
+from amelia.core.types import AgentConfig, Profile, collect_all_comments
 from amelia.drivers.factory import get_driver
 from amelia.server.models.events import (
     EPHEMERAL_SEQUENCE,
@@ -153,9 +153,7 @@ Provide clear evidence for each disposition decision."""
         if not state.last_reviews:
             raise ValueError("No review feedback found in state")
 
-        all_comments: list[str] = []
-        for review in state.last_reviews:
-            all_comments.extend(review.comments)
+        all_comments = collect_all_comments(state.last_reviews)
 
         parts.append("## Review Feedback to Evaluate\n")
         for i, comment in enumerate(all_comments, start=1):
@@ -206,9 +204,7 @@ Return your evaluation as an EvaluationOutput with all items and a summary.""")
             raise ValueError("ImplementationState must have last_reviews set for evaluation")
 
         # Handle empty review comments — aggregate from all reviews
-        all_comments: list[str] = []
-        for review in state.last_reviews:
-            all_comments.extend(review.comments)
+        all_comments = collect_all_comments(state.last_reviews)
         if not all_comments:
             logger.warning(
                 "No review comments to evaluate, returning empty result",

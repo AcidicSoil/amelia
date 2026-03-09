@@ -112,7 +112,7 @@ class Reviewer:
         prompts: dict[str, str] | None = None,
         agent_name: str = "reviewer",
         sandbox_provider: SandboxProvider | None = None,
-        review_guidelines: str = "",
+        review_guidelines: str | None = None,
     ):
         """Initialize the Reviewer agent.
 
@@ -140,7 +140,7 @@ class Reviewer:
         self._event_bus = event_bus
         self._prompts = prompts or {}
         self._agent_name = agent_name
-        self._review_guidelines = review_guidelines
+        self._review_guidelines = review_guidelines or ""
 
     @property
     def agentic_prompt(self) -> str:
@@ -239,11 +239,10 @@ class Reviewer:
     ) -> tuple[ReviewResult, str | None]:
         """Perform agentic code review that fetches diff using git tools.
 
-        This method uses agentic execution to:
-        1. Auto-detect technologies in the changed files
-        2. Load appropriate review skills (beagle-python:review-python, etc.)
-        3. Fetch the diff using git tools
-        4. Review the code following the loaded skills
+        The reviewer uses pre-loaded review guidelines (injected at construction
+        via ``review_guidelines``) as its system prompt.  Stack detection and
+        skill loading happen upstream in ``call_reviewer_node``; this method
+        focuses on executing the review and parsing results.
 
         This approach avoids passing large diffs via command line arguments,
         which can fail with "Argument list too long" errors.

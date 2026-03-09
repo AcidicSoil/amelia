@@ -2,12 +2,7 @@
 
 ## Quick Reference
 
-| Issue Type | Reference |
-|------------|-----------|
-| Async tests, setup, describe, tags | references/exunit-patterns.md |
-| Behavior-based mocking, expectations | references/mox-boundaries.md |
-| Bypass, Swoosh, Oban testing | references/test-adapters.md |
-| What to mock vs real, Ecto sandbox | references/integration-tests.md |
+**Key Topics:** Async tests, setup, describe, tags · Behavior-based mocking, expectations · Bypass, Swoosh, Oban testing · What to mock vs real, Ecto sandbox
 
 ## Mock Boundary Philosophy
 

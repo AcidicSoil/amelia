@@ -2235,11 +2235,11 @@ class OrchestratorService:
             return
 
         # Emit a message for each review in the list
-        for last_review in last_reviews:
-            approved = last_review.approved
-            severity = last_review.severity
-            issue_count = len(last_review.comments) if last_review.comments else 0
-            persona = last_review.reviewer_persona or "reviewer"
+        for review in last_reviews:
+            approved = review.approved
+            severity = review.severity
+            issue_count = len(review.comments) if review.comments else 0
+            persona = review.reviewer_persona or "reviewer"
 
             await self._emit(
                 workflow_id,

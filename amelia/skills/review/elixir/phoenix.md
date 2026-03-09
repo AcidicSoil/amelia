@@ -2,12 +2,7 @@
 
 ## Quick Reference
 
-| Issue Type | Reference |
-|------------|-----------|
-| Bounded contexts, Ecto integration | references/contexts.md |
-| Actions, params, error handling | references/controllers.md |
-| Pipelines, scopes, verified routes | references/routing.md |
-| Custom plugs, authentication | references/plugs.md |
+**Key Topics:** Bounded contexts, Ecto integration · Actions, params, error handling · Pipelines, scopes, verified routes · Custom plugs, authentication
 
 ## Review Checklist
 

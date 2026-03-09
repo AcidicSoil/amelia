@@ -95,7 +95,7 @@ class TestSkillInjection:
                 "from fastapi import FastAPI\n",
             )
 
-            # Verify load_skills was called with detected tags and default review types
+            # Verify load_skills was called per review type (default: ["general"])
             mock_load.assert_called_once_with({"python", "fastapi"}, ["general"])
 
             # Verify Reviewer was constructed with review_guidelines
@@ -173,8 +173,10 @@ class TestSkillInjection:
 
             await call_reviewer_node(state, config)
 
-            # Verify load_skills was called with both review types
-            mock_load.assert_called_once_with({"python"}, ["general", "security"])
+            # Verify load_skills was called once per review type
+            assert mock_load.call_count == 2
+            mock_load.assert_any_call({"python"}, ["general"])
+            mock_load.assert_any_call({"python"}, ["security"])
 
     @pytest.mark.asyncio
     async def test_empty_skills_when_no_matching_tags(

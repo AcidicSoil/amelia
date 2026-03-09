@@ -2,11 +2,7 @@
 
 ## Quick Reference
 
-| Topic | Reference |
-|-------|-----------|
-| Worker Pools & errgroup | references/worker-pools.md |
-| Rate Limiting | references/rate-limiting.md |
-| Race Detection & Fixes | references/race-detection.md |
+**Key Topics:** Worker Pools & errgroup · Rate Limiting · Race Detection & Fixes
 
 ## Core Rules
 
@@ -89,7 +85,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-See references/worker-pools.md for sizing guidance, backpressure, error handling, retry patterns, and `errgroup` as a simpler alternative.
+Consider sizing guidance, backpressure, error handling, retry patterns, and `errgroup` as a simpler alternative.
 
 ## Rate Limiting
 
@@ -100,7 +96,7 @@ Key points:
 - Per-IP rate limiting prevents individual clients from monopolizing resources
 - Always return `429 Too Many Requests` with a `Retry-After` header
 
-See references/rate-limiting.md for middleware implementation, per-IP limiting, stale limiter cleanup, and API key-based limiting.
+Consider middleware implementation, per-IP limiting, stale limiter cleanup, and API key-based limiting.
 
 ## Race Detection
 
@@ -113,7 +109,7 @@ go build -race -o myserver ./cmd/server
 
 The race detector catches concurrent reads and writes to shared memory. It does not catch logical races (e.g., TOCTOU bugs) or deadlocks.
 
-See references/race-detection.md for common web handler races, fixing strategies, and CI integration.
+Consider common web handler races, fixing strategies, and CI integration.
 
 ## Handler Safety
 

@@ -13,7 +13,7 @@ from loguru import logger
 
 from amelia.agents.prompts.defaults import PROMPT_DEFAULTS
 from amelia.core.agentic_state import ToolCall, ToolResult
-from amelia.core.types import AgentConfig, Profile
+from amelia.core.types import AgentConfig, Profile, collect_rejected_comments
 from amelia.drivers.base import AgenticMessageType
 from amelia.drivers.factory import get_driver
 from amelia.server.models.events import WorkflowEvent
@@ -229,13 +229,9 @@ IMPLEMENTATION PLAN:
         parts.append(f"\n\nPlease complete the following task:\n\n{state.goal}")
 
         # Review feedback (if this is a review-fix iteration)
-        if state.last_reviews:
-            rejected_comments: list[str] = []
-            for review in state.last_reviews:
-                if not review.approved:
-                    rejected_comments.extend(review.comments)
-            if rejected_comments:
-                feedback = "\n".join(f"- {c}" for c in rejected_comments)
-                parts.append(f"\n\nThe reviewer requested the following changes:\n{feedback}")
+        rejected_comments = collect_rejected_comments(state.last_reviews)
+        if rejected_comments:
+            feedback = "\n".join(f"- {c}" for c in rejected_comments)
+            parts.append(f"\n\nThe reviewer requested the following changes:\n{feedback}")
 
         return "\n".join(parts)

@@ -5,6 +5,7 @@ that can be used across multiple pipelines. These nodes handle common agentic
 operations like developer execution and code review.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -14,6 +15,7 @@ from loguru import logger
 
 from amelia.agents.developer import Developer
 from amelia.agents.reviewer import Reviewer
+from amelia.core.types import ReviewResult
 from amelia.pipelines.implementation.state import ImplementationState
 from amelia.pipelines.utils import extract_config_params
 from amelia.server.models.tokens import TokenUsage
@@ -41,9 +43,48 @@ async def _resolve_commit(
             sha = "".join(lines).strip()
             if sha:
                 return sha
-        except Exception:
+        except (OSError, RuntimeError):
             logger.warning("Failed to resolve commit from sandbox, falling back to host")
     return await get_current_commit(cwd=profile_repo_root)
+
+
+async def _run_git_command(
+    cmd: list[str],
+    repo_root: str,
+    sandbox_provider: "SandboxProvider | None" = None,
+) -> str:
+    """Run a git command, preferring sandbox when available.
+
+    Falls back to local subprocess if sandbox fails or is unavailable.
+
+    Args:
+        cmd: Git command as list of args.
+        repo_root: Local repo root for host fallback.
+        sandbox_provider: Optional sandbox for remote execution.
+
+    Returns:
+        Raw stdout output as string.
+    """
+    if sandbox_provider is not None:
+        try:
+            lines: list[str] = []
+            async for line in sandbox_provider.exec_stream(cmd):
+                lines.append(line)
+            return "".join(lines)
+        except (OSError, RuntimeError):
+            logger.warning(
+                "Failed to run git command in sandbox, falling back to host",
+                cmd=cmd[:3],
+            )
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        cwd=repo_root,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    return stdout.decode()
 
 
 async def _get_changed_files(
@@ -55,29 +96,12 @@ async def _get_changed_files(
 
     Uses sandbox when available, falls back to local subprocess.
     """
-    cmd = ["git", "diff", "--name-only", base_commit, "HEAD"]
-
-    if sandbox_provider is not None:
-        try:
-            lines: list[str] = []
-            async for line in sandbox_provider.exec_stream(cmd):
-                stripped = line.strip()
-                if stripped:
-                    lines.append(stripped)
-            return lines
-        except Exception:
-            logger.warning("Failed to get changed files from sandbox, falling back to host")
-
-    import asyncio  # noqa: PLC0415
-
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        cwd=repo_root,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+    output = await _run_git_command(
+        ["git", "diff", "--name-only", base_commit, "HEAD"],
+        repo_root,
+        sandbox_provider,
     )
-    stdout, _ = await proc.communicate()
-    return [line for line in stdout.decode().splitlines() if line.strip()]
+    return [line for line in output.splitlines() if line.strip()]
 
 
 async def _get_diff_content(
@@ -89,27 +113,11 @@ async def _get_diff_content(
 
     Uses sandbox when available, falls back to local subprocess.
     """
-    cmd = ["git", "diff", base_commit, "HEAD"]
-
-    if sandbox_provider is not None:
-        try:
-            lines: list[str] = []
-            async for line in sandbox_provider.exec_stream(cmd):
-                lines.append(line)
-            return "".join(lines)
-        except Exception:
-            logger.warning("Failed to get diff content from sandbox, falling back to host")
-
-    import asyncio  # noqa: PLC0415
-
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        cwd=repo_root,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+    return await _run_git_command(
+        ["git", "diff", base_commit, "HEAD"],
+        repo_root,
+        sandbox_provider,
     )
-    stdout, _ = await proc.communicate()
-    return stdout.decode()
 
 
 async def _save_token_usage(
@@ -228,11 +236,19 @@ async def call_developer_node(
     developer = Developer(agent_config, prompts=prompts, sandbox_provider=sandbox_provider)
 
     final_state = state
-    async for new_state, event in developer.run(state, profile, workflow_id=workflow_id):
-        final_state = new_state
-        # Stream events are emitted via event_bus if provided
-        if event_bus:
-            event_bus.emit(event)
+    try:
+        async for new_state, event in developer.run(state, profile, workflow_id=workflow_id):
+            final_state = new_state
+            if event_bus and event is not None:
+                event_bus.emit(event)
+    except Exception:
+        logger.exception(
+            "Developer execution failed",
+            task=task_number,
+            total_tasks=state.total_tasks,
+            workflow_id=str(workflow_id),
+        )
+        raise
 
     await _save_token_usage(developer.driver, workflow_id, "developer", repository)
 
@@ -318,66 +334,88 @@ async def call_reviewer_node(
         )
 
     # Detect stack and load review skills
-    review_types = agent_config.options.get("review_types", ["general"])
-    changed_files = await _get_changed_files(base_commit, profile.repo_root, sandbox_provider)
-    diff_content = await _get_diff_content(base_commit, profile.repo_root, sandbox_provider)
+    raw_review_types = agent_config.options.get("review_types", ["general"])
+    if not isinstance(raw_review_types, list) or not raw_review_types:
+        logger.warning(
+            "Invalid review_types in agent options, falling back to ['general']",
+            raw_review_types=raw_review_types,
+        )
+        raw_review_types = ["general"]
+    review_types: list[str] = [str(rt) for rt in raw_review_types]
+
+    changed_files, diff_content = await asyncio.gather(
+        _get_changed_files(base_commit, profile.repo_root, sandbox_provider),
+        _get_diff_content(base_commit, profile.repo_root, sandbox_provider),
+    )
     tags = detect_stack(changed_files, diff_content)
-    review_guidelines = load_skills(tags, review_types)
 
     logger.info(
-        "Loaded review skills",
+        "Detected stack for review",
         agent=agent_name,
         tags=sorted(tags),
         review_types=review_types,
-        guidelines_length=len(review_guidelines),
     )
 
-    reviewer = Reviewer(
-        agent_config,
-        event_bus=event_bus,
-        prompts=prompts,
-        agent_name=agent_name,
-        sandbox_provider=sandbox_provider,
-        review_guidelines=review_guidelines,
-    )
+    # Run a separate reviewer for each review type
+    reviews: list[ReviewResult] = []
+    new_session_id: str | None = None
 
-    # Always use agentic review - it fetches the diff via git tools
-    review_result, new_session_id = await reviewer.agentic_review(
-        state, base_commit, profile, workflow_id=workflow_id
-    )
+    for review_type in review_types:
+        guidelines = load_skills(tags, [review_type])
+        logger.info(
+            "Running review pass",
+            agent=agent_name,
+            review_type=review_type,
+            guidelines_length=len(guidelines),
+        )
 
-    await _save_token_usage(reviewer.driver, workflow_id, agent_name, repository)
+        reviewer = Reviewer(
+            agent_config,
+            event_bus=event_bus,
+            prompts=prompts,
+            agent_name=agent_name,
+            sandbox_provider=sandbox_provider,
+            review_guidelines=guidelines,
+        )
+
+        review_result, session_id = await reviewer.agentic_review(
+            state, base_commit, profile, workflow_id=workflow_id
+        )
+
+        await _save_token_usage(reviewer.driver, workflow_id, agent_name, repository)
+
+        # Tag result with the review type as reviewer_persona
+        review_result = review_result.model_copy(update={"reviewer_persona": review_type})
+        reviews.append(review_result)
+        new_session_id = session_id
+
+        logger.info(
+            "Review pass completed",
+            agent=agent_name,
+            review_type=review_type,
+            severity=str(review_result.severity),
+            approved=review_result.approved,
+            issue_count=len(review_result.comments),
+        )
 
     next_iteration = state.review_iteration + 1
-    logger.info(
-        "Agent action completed",
-        agent=agent_name,
-        action="review_completed",
-        severity=str(review_result.severity),
-        approved=review_result.approved,
-        issue_count=len(review_result.comments),
-        review_iteration=next_iteration,
-    )
 
-    # Build return dict — wrap single review in a list for last_reviews
-    result_dict = {
-        "last_reviews": [review_result],
+    # Build return dict with all review results
+    result_dict: dict[str, Any] = {
+        "last_reviews": reviews,
         "driver_session_id": new_session_id,
         "review_iteration": next_iteration,
+        "task_review_iteration": state.task_review_iteration + 1,
     }
-
-    # Increment task review iteration for task-based execution
-    result_dict["task_review_iteration"] = state.task_review_iteration + 1
 
     # Debug: Log the full state update being returned
     logger.debug(
         "call_reviewer_node returning state update",
-        last_review_approved=review_result.approved,
-        last_review_severity=review_result.severity,
-        last_review_persona=review_result.reviewer_persona,
-        last_review_comment_count=len(review_result.comments),
+        review_count=len(reviews),
+        all_approved=all(r.approved for r in reviews),
+        review_types=[r.reviewer_persona for r in reviews],
         review_iteration=next_iteration,
-        task_review_iteration=result_dict.get("task_review_iteration"),
+        task_review_iteration=result_dict["task_review_iteration"],
         total_tasks=state.total_tasks,
         current_task_index=state.current_task_index,
     )

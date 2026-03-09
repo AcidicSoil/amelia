@@ -2,12 +2,7 @@
 
 ## Quick Reference
 
-| Issue Type | Reference |
-|------------|-----------|
-| Session lifecycle, context managers, async sessions | references/sessions.md |
-| relationship(), lazy loading, N+1, joinedload | references/relationships.md |
-| select() vs query(), ORM overhead, bulk ops | references/queries.md |
-| Alembic patterns, reversible migrations, data migrations | references/migrations.md |
+**Key Topics:** Session lifecycle, context managers, async sessions · relationship(), lazy loading, N+1, joinedload · select() vs query(), ORM overhead, bulk ops · Alembic patterns, reversible migrations, data migrations
 
 ## Review Checklist
 

@@ -2,12 +2,7 @@
 
 ## Quick Reference
 
-| Issue Type | Reference |
-|------------|-----------|
-| mount, handle_params, handle_event, handle_async | references/lifecycle.md |
-| When to use assigns vs streams, AsyncResult | references/assigns-streams.md |
-| Function vs LiveComponent, slots, attrs | references/components.md |
-| Authorization per event, phx-value trust | references/security.md |
+**Key Topics:** mount, handle_params, handle_event, handle_async · When to use assigns vs streams, AsyncResult · Function vs LiveComponent, slots, attrs · Authorization per event, phx-value trust
 
 ## Review Checklist
 

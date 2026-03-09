@@ -2,12 +2,7 @@
 
 ## Quick Reference
 
-| Issue Type | Reference |
-|------------|-----------|
-| APIRouter setup, response_model, status codes | references/routes.md |
-| Depends(), yield deps, cleanup, shared deps | references/dependencies.md |
-| Pydantic models, HTTPException, 422 handling | references/validation.md |
-| Async handlers, blocking I/O, background tasks | references/async.md |
+**Key Topics:** APIRouter setup, response_model, status codes · Depends(), yield deps, cleanup, shared deps · Pydantic models, HTTPException, 422 handling · Async handlers, blocking I/O, background tasks
 
 ## Review Checklist
 

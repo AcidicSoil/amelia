@@ -2,10 +2,7 @@
 
 ## Quick Reference
 
-| Issue Type | Reference |
-|------------|-----------|
-| Test structure, naming | references/structure.md |
-| Mocking, interfaces | references/mocking.md |
+**Key Topics:** Test structure, naming · Mocking, interfaces
 
 ## Review Checklist
 
