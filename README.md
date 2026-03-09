@@ -4,14 +4,11 @@
 
 [Amelia](https://en.wikipedia.org/wiki/Amelia_Earhart) is multi-agent orchestration for software development with human-in-the-loop approval gates and end-to-end observability.
 
-- **Six specialized agents** — Architect, Developer, Reviewer, Evaluator, Oracle, and Brainstormer collaborate through a LangGraph state machine
-- **Human approval before code** — review and approve the Architect's plan before any code is written
-- **Task-based execution** — each task is reviewed, committed, and tracked independently so large projects stay manageable
 - **Multiple LLM drivers** — OpenRouter API, Claude CLI, or Codex CLI with per-agent model configuration
-- **Real-time dashboard** — monitor workflows, review plans, track costs, and manage configuration
+- **CLI + Real-time dashboard** — monitor workflows, review plans, track costs, and manage configuration
 - **Workflow queueing** — queue issues, batch-generate plans, and control execution
-- **Issue tracker integration** — work from GitHub or Jira issues directly
-- **Sandbox execution** — run agents locally, in Docker, or in Daytona cloud sandboxes
+- **Sandbox execution** — run agents locally, in Docker, or in cloud sandboxes (Daytona.io)
+- **(Next) Issue tracker integration** — work from GitHub or Jira issues directly
 
 ## Prerequisites
 
